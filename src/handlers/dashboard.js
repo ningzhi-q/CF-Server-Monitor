@@ -1,5 +1,6 @@
 import { checkAuth, simpleAuthResponse } from '../middleware/auth.js';
 import { getDashboardLatencyHistory, getLatestMetrics, getLatestMetricsForAllServers } from '../database/schema.js';
+import { parseAutoLocation, normalizeAutoLocation } from '../utils/autoLocation.js';
 import { getAllServers, getServerDetail } from '../utils/cache.js';
 import { mergeMetricsIntoServer, coerceNumericMetricFields } from '../utils/metrics.js';
 import { normalizeLongHistoryPoints } from '../utils/settings.js';
@@ -60,6 +61,10 @@ function withoutPrivateServerFields(server) {
   delete item.bandwidth;
   delete item.note;
   delete item.auto_update;
+  const location = normalizeAutoLocation(item.location) || parseAutoLocation(item.auto_location);
+  delete item.auto_location;
+  delete item.location;
+  if (location) item.location = location;
   return normalizePublicIpFields(item);
 }
 

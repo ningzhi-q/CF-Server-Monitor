@@ -1,3 +1,4 @@
+import { locationFromCf, saveAutoLocation, setTrustedLocationHeaders } from '../utils/autoLocation.js';
 import { saveMetricsHistory } from '../database/schema.js';
 import { getServerDetail, clearServerDetailCache, patchServerDetailCache } from '../utils/cache.js';
 import { evaluateTrafficAlert } from '../services/notification.js';
@@ -328,12 +329,15 @@ function buildSamplePayloadForBroadcast(metrics = {}, timestamp = Date.now()) {
   return coerceNumericMetricFields(payload);
 }
 
-export function toBroadcastSamples(id, samples, regionCode, agentVersion = '', reportMetrics = null) {
+export function toBroadcastSamples(id, samples, regionCode, agentVersion = '', reportMetrics = null, location = null) {
   const lastIndex = samples.length - 1;
   return samples.map((sample, index) => {
     const metrics = reportMetrics && typeof reportMetrics === 'object' && index === lastIndex
       ? { ...reportMetrics, ...(sample.metrics || {}) }
-      : (sample.metrics || {});
+      : { ...(sample.metrics || {}) };
+    // Client payloads must never supply trusted location metadata, including older samples.
+    delete metrics.location;
+    delete metrics.auto_location;
     if (index !== lastIndex) {
       return { ts: sample.ts, payload: buildSamplePayloadForBroadcast(metrics, sample.ts) };
     }
@@ -345,6 +349,7 @@ export function toBroadcastSamples(id, samples, regionCode, agentVersion = '', r
     });
     const filtered = Object.assign({}, payload);
     BROADCAST_DELETE_FIELDS.forEach(field => delete filtered[field]);
+    if (location) filtered.location = location;
     filtered.sample_timestamp = sample.ts;
     return { ts: sample.ts, payload: filtered };
   });
@@ -755,7 +760,8 @@ async function handleUpdateCore(request, env, ctx, discovery, authState = null) 
       agentVersion
     );
 
-    const broadcastSamples = toBroadcastSamples(id, samples, regionCode, agentVersion, latestMetrics);
+    const location = await saveAutoLocation(env.DB, serverDetail, locationFromCf(request.cf));
+    const broadcastSamples = toBroadcastSamples(id, samples, regionCode, agentVersion, latestMetrics, location);
     cacheLatestReportUpdate(id, broadcastSamples, Date.now());
     // 加入批量队列，由后台定时任务统一推送到 DO
     queueBroadcastSamples(id, broadcastSamples);
@@ -842,9 +848,7 @@ async function forwardWebSocketUpgrade(request, env, internalPath, logPrefix) {
     const realOrigin = new URL(request.url).origin;
     const headers = new Headers(request.headers);
     headers.set('X-Real-Origin', realOrigin);
-    if (request.cf?.country && !headers.get('cf-ipcountry')) {
-      headers.set('cf-ipcountry', request.cf.country);
-    }
+    setTrustedLocationHeaders(headers, request.cf);
     return await stub.fetch(new Request(`http://internal${internalPath}${qs}`, {
       method: request.method,
       headers,

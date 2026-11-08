@@ -840,3 +840,7 @@ interface WsMessage {
 ```
 
 延时与丢包字段的展示约定：`false`（或 REST/历史字段缺失时归一化的 `false`）表示节点未配置/未上报/未取样，前端应不显示；`null` 表示该轮明确探测超时/未取到有效 RTT，详情页可显示为 “Timeout/超时”，不应把 `null` 当“无数据”从指标区和图表图例中隐藏。数值 `0`（包括 `0%` 丢包）是有效数据，必须正常显示。自定义节点显示名使用 `node_1_name` 至 `node_4_name`，未配置时使用 `Node 1` 至 `Node 4`。
+
+## ningzhi-q 扩展：探针自动 IP 属地
+
+详见 [自动上报 IP 属地](docs/automatic-ip-location.md)。公共 `/api/servers`、`/api/server` 及 `/api/ws` 最新样本可附带 `{latitude,longitude,country,city,source:"cloudflare-ip",observed_at}` 的 `location` 字段。城市可为 null，时间为毫秒。只表示上报出口 IP 的属地参考，不公开真实 IP，不保证物理位置。元数据不可用则不生成位置；旧主题可忽略扩展字段。主题仍仅使用现有公开接口，无需外部 IP 查询或管理端调用。

@@ -63,6 +63,7 @@ export async function addServerColumns(db) {
       offline_notify_disabled: "TEXT DEFAULT '0'",
       sort_order: "INTEGER DEFAULT 0",
       region: "TEXT DEFAULT ''",
+      auto_location: "TEXT",
       tags: "TEXT DEFAULT ''",
       note: "TEXT DEFAULT ''",
       billing_cycle: "TEXT DEFAULT 'month'",

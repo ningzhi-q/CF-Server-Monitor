@@ -166,6 +166,8 @@ export function normalizeProbeMetricRow(metrics) {
 
 export function mergeMetricsIntoServer(server, metrics) {
   if (!metrics) return;
+  // Only trusted, sanitized report-cache samples contain location; raw Agent data is not cached.
+  if (metrics.location) server.location = metrics.location;
 
   server.cpu = metrics.cpu || 0;
   server.load_avg = metrics.load ?? metrics.load_avg ?? '0 0 0';

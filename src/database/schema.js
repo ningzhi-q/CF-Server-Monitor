@@ -76,6 +76,7 @@ export async function initDatabase(db) {
           name TEXT,
           server_group TEXT DEFAULT 'Default',
           region TEXT DEFAULT '',
+          auto_location TEXT,
           tags TEXT DEFAULT '',
           note TEXT DEFAULT '',
           price TEXT DEFAULT '',

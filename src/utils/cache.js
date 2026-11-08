@@ -65,7 +65,7 @@ export async function getAllServers(db, includeHidden = true) {
 
   try {
     const { results } = await db.prepare('SELECT * FROM servers ORDER BY sort_order ASC').all();
-    serversListCache = { data: results, time: now };
+    serversListCache = { data: results, time: now, db };
     debug('服务器列表缓存更新');
     return filterServersByHidden(results, includeHidden);
   } catch (e) {
@@ -88,6 +88,15 @@ export function clearServerDetailCache() {
 export function patchServerDetailCache(id, fields) {
   const entry = serverDetailCache.get(id);
   if (entry && entry.data) Object.assign(entry.data, fields);
+}
+
+export function patchServerLocationCaches(db, id, serialized) {
+  const entry = serverDetailCache.get(id);
+  if (entry?.db === db && entry.data) entry.data.auto_location = serialized;
+  if (serversListCache?.db === db) {
+    const server = serversListCache.data.find(item => item.id === id);
+    if (server) server.auto_location = serialized;
+  }
 }
 
 export async function getServerDetail(db, id, includeHidden = false) {
@@ -127,6 +136,7 @@ export async function getServerDetail(db, id, includeHidden = false) {
 
   if (!degraded) {
     setCacheEntry(serverDetailCache, id, {
+      db,
       data: server,
       time: now
     }, SERVER_DETAIL_CACHE_MAX_ENTRIES);
