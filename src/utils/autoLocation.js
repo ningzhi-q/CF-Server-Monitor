@@ -89,8 +89,12 @@ async function lookupAutoLocation(input, ip, fetcher = fetch) {
     const body = await response.text();
     if (body.length > 4096) return deferred('response too large');
     const data = JSON.parse(body);
-    if (!data || typeof data !== 'object' || Array.isArray(data) || data.ipAddress !== address || data.countryCode !== location.country ||
-        typeof data.city !== 'string' || !data.city.trim() || data.city.length > 160 || /[\x00-\x1f]/.test(data.city)) return deferred('invalid provider response');
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return deferred('invalid provider response');
+    if (Object.hasOwn(data, 'errorCode') || Object.hasOwn(data, 'error')) return deferred(
+      data.errorCode === 'OVER_QUERY_LIMIT' ? 'provider query limit' : 'provider rejected query');
+    if (data.ipAddress !== address) return deferred('provider address mismatch');
+    if (data.countryCode !== location.country) return deferred('provider country mismatch');
+    if (typeof data.city !== 'string' || !data.city.trim() || data.city.length > 160 || /[\x00-\x1f]/.test(data.city)) return deferred('invalid provider locality');
     const refined = patch => {
       const result = normalizeAutoLocation({ ...location, ...patch });
       return result ? { location: result, retry: false } : failed;

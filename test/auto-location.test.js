@@ -18,12 +18,20 @@ test('provider failure diagnostics expose no reporter IP, body or error text', a
   t.mock.method(console, 'warn', (...args) => warnings.push(args));
   const coarse = locationFromCf({ country: 'HK', city: 'Hong Kong', latitude: '22.3', longitude: '114.1' }, now);
   const ip = '192.0.2.7';
-  for (const fetcher of [async () => new Response('private-body', { status: 429 }), async () => { throw Error(`private-error ${ip}`); }]) {
+  for (const fetcher of [async () => new Response('private-body', { status: 429 }), async () => { throw Error(`private-error ${ip}`); },
+    async () => Response.json({ errorCode: 'OVER_QUERY_LIMIT', error: `private-body ${ip}` }),
+    async () => Response.json({ errorCode: `private-error ${ip}` }),
+    async () => Response.json({ ipAddress: '192.0.2.8', countryCode: 'HK', city: 'private-city' }),
+    async () => Response.json({ ipAddress: ip, countryCode: 'US', city: 'private-city' })]) {
     assert.deepEqual(await refineAutoLocation(coarse, ip, fetcher), coarse);
   }
   assert.deepEqual(warnings, [
     ['[auto-location] Lookup deferred:', 'HK', 'HTTP 429'],
-    ['[auto-location] Lookup deferred:', 'HK', 'request or response failed']
+    ['[auto-location] Lookup deferred:', 'HK', 'request or response failed'],
+    ['[auto-location] Lookup deferred:', 'HK', 'provider query limit'],
+    ['[auto-location] Lookup deferred:', 'HK', 'provider rejected query'],
+    ['[auto-location] Lookup deferred:', 'HK', 'provider address mismatch'],
+    ['[auto-location] Lookup deferred:', 'HK', 'provider country mismatch']
   ]);
   assert.equal(JSON.stringify(warnings).includes(ip), false);
   assert.equal(JSON.stringify(warnings).includes('private-'), false);
