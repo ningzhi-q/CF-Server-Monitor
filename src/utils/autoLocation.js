@@ -6,6 +6,7 @@ const REFRESH_MS = 24 * 60 * 60 * 1000;
 const RETRY_MS = 60 * 1000;
 const MAX_ENTRIES = 5000;
 const databaseStates = new WeakMap();
+const localitySource = value => ['db-ip', 'ipapi-is'].includes(value) ? value : null;
 
 // This DTO contains an IP geolocation reference, never the reporter's IP address.
 export function normalizeAutoLocation(value) {
@@ -18,11 +19,13 @@ export function normalizeAutoLocation(value) {
       (latitude === 0 && longitude === 0) ||
       typeof observed_at !== 'number' || !Number.isSafeInteger(observed_at) || observed_at <= 0 ||
       (city !== null && city !== undefined && (typeof city !== 'string' || city.length > 160 || /[\x00-\x1f]/.test(city)))) return null;
-  const subdivision = value.subdivision_source === 'db-ip' && typeof value.subdivision === 'string' &&
+  const subdivisionSource = localitySource(value.subdivision_source);
+  const citySource = localitySource(value.city_source);
+  const subdivision = subdivisionSource && typeof value.subdivision === 'string' &&
     value.subdivision.trim() && value.subdivision.length <= 160 && !/[\x00-\x1f]/.test(value.subdivision) ? value.subdivision.trim() : null;
   return { latitude, longitude, country, city: city?.trim() || null, source, observed_at,
-    ...(value.city_source === 'db-ip' ? { city_source: 'db-ip' } : {}),
-    ...(subdivision ? { subdivision, subdivision_source: 'db-ip' } : {}) };
+    ...(citySource ? { city_source: citySource } : {}),
+    ...(subdivision ? { subdivision, subdivision_source: subdivisionSource } : {}) };
 }
 
 export function parseAutoLocation(value) {
@@ -78,20 +81,20 @@ async function lookupAutoLocation(input, ip, fetcher = fetch) {
   const unchanged = { location, retry: false };
   const failed = { location, retry: true };
   if (!location || !address || !needsLocationRefinement(location)) return unchanged;
-  const deferred = reason => {
+  const deferred = (reason, quota = false) => {
     // Keep retry diagnostics useful without exposing the reporter's IP or body.
     console.warn('[auto-location] Lookup deferred:', location.country, reason);
-    return failed;
+    return { ...failed, quota };
   };
   try {
     const response = await fetcher(`https://api.db-ip.com/v2/free/${encodeURIComponent(address)}`, { signal: AbortSignal.timeout(3000) });
-    if (!response.ok) return deferred(`HTTP ${response.status}`);
+    if (!response.ok) return deferred(`HTTP ${response.status}`, response.status === 429);
     const body = await response.text();
     if (body.length > 4096) return deferred('response too large');
     const data = JSON.parse(body);
     if (!data || typeof data !== 'object' || Array.isArray(data)) return deferred('invalid provider response');
     if (Object.hasOwn(data, 'errorCode') || Object.hasOwn(data, 'error')) return deferred(
-      data.errorCode === 'OVER_QUERY_LIMIT' ? 'provider query limit' : 'provider rejected query');
+      data.errorCode === 'OVER_QUERY_LIMIT' ? 'provider query limit' : 'provider rejected query', data.errorCode === 'OVER_QUERY_LIMIT');
     if (data.ipAddress !== address) return deferred('provider address mismatch');
     if (data.countryCode !== location.country) return deferred('provider country mismatch');
     if (typeof data.city !== 'string' || !data.city.trim() || data.city.length > 160 || /[\x00-\x1f]/.test(data.city)) return deferred('invalid provider locality');
@@ -119,8 +122,43 @@ async function lookupAutoLocation(input, ip, fetcher = fetch) {
   }
 }
 
+// A quota response is not an empty location. Try an independent provider, keeping
+// the trusted country and coordinates, and validating its IP before accepting names.
+async function lookupLocationWithFallback(input, ip, fetcher = fetch) {
+  const primary = await lookupAutoLocation(input, ip, fetcher);
+  if (!primary.quota) return primary;
+  const location = primary.location;
+  const address = normalizeLocationIp(ip);
+  try {
+    const response = await fetcher(`https://api.ipapi.is/?q=${encodeURIComponent(address)}`, { signal: AbortSignal.timeout(3000) });
+    if (!response.ok) return primary;
+    const body = await response.text();
+    if (body.length > 16384) return primary;
+    const data = JSON.parse(body);
+    if (!data || typeof data !== 'object' || Array.isArray(data) || data.ip !== address || data.error || data.is_bogon === true) return primary;
+    const area = data.location && typeof data.location === 'object' && !Array.isArray(data.location) ? data.location : data;
+    const countryCode = area.country_code;
+    const countryNames = ['long', 'short'].map(style => new Intl.DisplayNames(['en'], { type: 'region', style }).of(location.country));
+    if (countryCode ? countryCode !== location.country : !countryNames.includes(area.country)) return primary;
+    const validName = value => typeof value === 'string' && value.trim() && value.length <= 160 && !/[\x00-\x1f]/.test(value);
+    if (!validName(area.city)) return primary;
+    const city = area.city.trim();
+    let patch = {};
+    if (location.country === 'HK') {
+      const district = /^(hong kong|香港)$/i.test(city) ? area.state || area.region : city;
+      if (validName(district) && !/^(hong kong|香港)$/i.test(district.trim())) patch = { subdivision: district.trim(), subdivision_source: 'ipapi-is' };
+    } else if (location.country === 'SG') {
+      const district = /^singapore\s*\(([^()]+)\)$/i.exec(city)?.[1] || area.state || area.region;
+      if (validName(district) && !/^(singapore|新加坡)$/i.test(district.trim())) patch = { subdivision: district.trim(), subdivision_source: 'ipapi-is' };
+    } else {
+      patch = { city, city_source: 'ipapi-is' };
+    }
+    return { location: normalizeAutoLocation({ ...location, ...patch }), retry: false };
+  } catch { return primary; }
+}
+
 export async function refineAutoLocation(input, ip, fetcher = fetch) {
-  return (await lookupAutoLocation(input, ip, fetcher)).location;
+  return (await lookupLocationWithFallback(input, ip, fetcher)).location;
 }
 
 async function ensureColumn(db, state) {
@@ -138,7 +176,7 @@ async function ensureColumn(db, state) {
 
 function samePlace(a, b) {
   return a && b && a.latitude === b.latitude && a.longitude === b.longitude &&
-    a.country === b.country && a.city === b.city && a.city_source === b.city_source && a.subdivision === b.subdivision;
+    a.country === b.country && a.city === b.city && a.city_source === b.city_source && a.subdivision === b.subdivision && a.subdivision_source === b.subdivision_source;
 }
 
 // Call only after authentication, server lookup and metric payload validation.
@@ -163,7 +201,7 @@ export async function saveAutoLocation(db, server, input, now = Date.now(), opti
       // Promise is installed before awaiting, deduplicating concurrent reports.
       const previous = entry.lookup?.key === key ? entry.lookup : null;
       const lookup = { key, expiresAt: Infinity, result: null };
-      lookup.result = lookupAutoLocation(location, ip, options.fetcher).then(result => {
+      lookup.result = lookupLocationWithFallback(location, ip, options.fetcher).then(result => {
         lookup.expiresAt = now + (result.retry ? RETRY_MS : REFRESH_MS);
         if (result.retry && previous) return previous.result;
         return result.location;
