@@ -720,10 +720,10 @@ interface Server {
   server_group: string;
   tags: string;
   price: string; // "0" 或 "-1" 表示免费，空白表示未设置
-  billing_cycle: string;
-  auto_renewal: string;
+  billing_cycle: string; // month | quarter | half_year | year | two_years | three_years | four_years | five_years | one_time
+  auto_renewal: string; // "0" | "1"；一次性或永久条目保存为 "0"
   currency: string;
-  expire_date: string;
+  expire_date: string; // YYYY-MM-DD；"never" 表示永久，空字符串表示未设置
   traffic_limit: string;
   traffic_calc_type: string;
   reset_day: number;

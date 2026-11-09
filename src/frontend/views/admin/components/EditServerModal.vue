@@ -57,7 +57,7 @@
 
         <div class="form-group flex-1">
           <label class="form-label">{{ trans.expirationDate }}</label>
-          <input type="date" name="edit_expire_date" autocomplete="off" v-model="editForm.expire_date" class="form-input" @click="openDatePicker">
+          <ExpirationDateInput :key="`${editForm.id}-${show}`" v-model="editForm.expire_date" name="edit_expire_date" :trans="trans" />
         </div>
       </div>
 
@@ -228,7 +228,7 @@
       <div class="form-row">
         <div class="form-group flex-1">
           <div class="checkbox-item no-margin">
-            <input type="checkbox" v-model="editForm.auto_renewal">
+            <input type="checkbox" v-model="editForm.auto_renewal" :disabled="!canAutoRenew">
             <label>
               <b>{{ trans.autoRenewal }}</b>
             </label>
@@ -272,10 +272,11 @@
 
 <script setup>
 import { computed, watch } from 'vue'
+import ExpirationDateInput from './ExpirationDateInput.vue'
 import HelpTooltip from '../../../components/HelpTooltip.vue'
 import { PING_NODE_FIELDS, validatePingNode } from '../../../utils/pingNode.js'
 import { currentLang } from '../../../utils/i18n.js'
-import { BILLING_CYCLES, CURRENCY_OPTIONS, getLocalizedOptionField, normalizePrice, renewExpireDateIfNeeded } from '../../../utils/server.js'
+import { BILLING_CYCLES, CURRENCY_OPTIONS, getLocalizedOptionField, normalizePrice, renewExpireDateIfNeeded, supportsAutoRenewal } from '../../../utils/server.js'
 
 const editForm = defineModel('editForm', { type: Object, required: true })
 
@@ -338,17 +339,15 @@ const normalizePriceInput = () => {
   editForm.value.price = normalizePrice(editForm.value.price)
 }
 
-const openDatePicker = (event) => {
-  const input = event?.currentTarget
-  if (typeof input?.showPicker !== 'function') return
-  try {
-    input.showPicker()
-  } catch (_) {}
-}
+const canAutoRenew = computed(() => supportsAutoRenewal(editForm.value.billing_cycle, editForm.value.expire_date))
 
 watch(
   () => [editForm.value.auto_renewal, editForm.value.billing_cycle, editForm.value.expire_date],
   () => {
+    if (!canAutoRenew.value) {
+      editForm.value.auto_renewal = false
+      return
+    }
     if (!editForm.value.auto_renewal) return
     const renewal = renewExpireDateIfNeeded(
       editForm.value.expire_date,

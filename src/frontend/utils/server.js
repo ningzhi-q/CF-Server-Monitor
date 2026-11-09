@@ -10,7 +10,8 @@ export const BILLING_CYCLES = Object.freeze([
   { value: 'two_years', months: 24, labelZh: '两年', labelEn: 'Two years', shortLabelZh: '2年', shortLabelEn: '2Y', labelEs: 'Dos años', shortLabelEs: '2 años', labelZhTw: '兩年', shortLabelZhTw: '2年' },
   { value: 'three_years', months: 36, labelZh: '三年', labelEn: 'Three years', shortLabelZh: '3年', shortLabelEn: '3Y', labelEs: 'Tres años', shortLabelEs: '3 años', labelZhTw: '三年', shortLabelZhTw: '3年' },
   { value: 'four_years', months: 48, labelZh: '四年', labelEn: 'Four years', shortLabelZh: '4年', shortLabelEn: '4Y', labelEs: 'Cuatro años', shortLabelEs: '4 años', labelZhTw: '四年', shortLabelZhTw: '4年' },
-  { value: 'five_years', months: 60, labelZh: '五年', labelEn: 'Five years', shortLabelZh: '5年', shortLabelEn: '5Y', labelEs: 'Cinco años', shortLabelEs: '5 años', labelZhTw: '五年', shortLabelZhTw: '5年' }
+  { value: 'five_years', months: 60, labelZh: '五年', labelEn: 'Five years', shortLabelZh: '5年', shortLabelEn: '5Y', labelEs: 'Cinco años', shortLabelEs: '5 años', labelZhTw: '五年', shortLabelZhTw: '5年' },
+  { value: 'one_time', months: 0, labelZh: '一次性', labelEn: 'One-time', shortLabelZh: '一次性', shortLabelEn: 'one-time', labelEs: 'Pago único', shortLabelEs: 'único', labelZhTw: '一次性', shortLabelZhTw: '一次性', labelJa: '買い切り', shortLabelJa: '買い切り', labelId: 'Sekali bayar', shortLabelId: 'sekali', labelFr: 'Paiement unique', shortLabelFr: 'unique' }
 ]);
 
 export const CURRENCY_OPTIONS = Object.freeze([
@@ -82,7 +83,11 @@ const CYCLE_ALIASES = new Map([
   ['4 years', 'four_years'],
   ['五年', 'five_years'],
   ['five_years', 'five_years'],
-  ['5 years', 'five_years']
+  ['5 years', 'five_years'],
+  ['一次性', 'one_time'],
+  ['one_time', 'one_time'],
+  ['one-time', 'one_time'],
+  ['one time', 'one_time']
 ]);
 
 const NORMALIZED_CURRENCIES = new Set(CURRENCY_OPTIONS.map(item => item.symbol));
@@ -143,6 +148,7 @@ export function detectBillingCycle(value) {
   const raw = String(value || '').trim().toLowerCase();
   if (!raw) return '';
 
+  if (/一次性|one[-_\s]?time/i.test(raw)) return 'one_time';
   if (/五年|5\s*(y|yr|yrs|year|years)/i.test(raw)) return 'five_years';
   if (/四年|4\s*(y|yr|yrs|year|years)/i.test(raw)) return 'four_years';
   if (/三年|3\s*(y|yr|yrs|year|years)/i.test(raw)) return 'three_years';
@@ -172,6 +178,16 @@ export function getBillingCycleOption(value) {
 
 export function isEnabledFlag(value) {
   return value === true || value === 1 || value === '1' || value === 'true';
+}
+
+export const PERMANENT_EXPIRE_DATE = 'never';
+
+export function isPermanentExpiration(value) {
+  return String(value || '').trim() === PERMANENT_EXPIRE_DATE;
+}
+
+export function supportsAutoRenewal(billingCycle, expireDate) {
+  return getBillingCycleOption(billingCycle).months > 0 && !isPermanentExpiration(expireDate);
 }
 
 function parseDateOnly(value) {
@@ -226,7 +242,7 @@ function utcDateStringWithOffset(now = Date.now(), offsetDays = 0) {
 
 export function renewExpireDateIfNeeded(expireDate, billingCycle, autoRenewal, now = Date.now(), renewBeforeDays = 0) {
   const original = String(expireDate || '').trim();
-  if (!original || !parseDateOnly(original) || !isEnabledFlag(autoRenewal)) {
+  if (!original || !parseDateOnly(original) || !isEnabledFlag(autoRenewal) || !supportsAutoRenewal(billingCycle, original)) {
     return { expire_date: original, renewed: false };
   }
 
@@ -244,7 +260,7 @@ export function renewExpireDateIfNeeded(expireDate, billingCycle, autoRenewal, n
   return { expire_date: nextDate, renewed };
 }
 
-const OPTION_FIELD_LANGUAGE_SUFFIX = Object.freeze({ zh: 'Zh', 'zh-TW': 'ZhTw', en: 'En', es: 'Es' });
+const OPTION_FIELD_LANGUAGE_SUFFIX = Object.freeze({ zh: 'Zh', 'zh-TW': 'ZhTw', en: 'En', es: 'Es', ja: 'Ja', id: 'Id', fr: 'Fr' });
 
 export function getLocalizedOptionField(option, field, lang) {
   return option?.[`${field}${OPTION_FIELD_LANGUAGE_SUFFIX[lang] || 'En'}`] ?? option?.[`${field}En`] ?? '';

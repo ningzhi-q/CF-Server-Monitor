@@ -411,7 +411,7 @@ import { t, useTranslation } from '../utils/i18n'
 import { CHART, HISTORY } from '../utils/constants'
 import { formatDateTime, normalizeTimestamp as normalizeMetricTimestamp } from '../utils/time.js'
 import useTheme from '../composables/useTheme'
-import { isDisabledProbeMetric } from '../utils/server.js'
+import { isDisabledProbeMetric, isPermanentExpiration } from '../utils/server.js'
 import { resolvePlaybackCursor } from '../utils/playback.js'
 import { applyMikusThemeOptions } from '../utils/themeOptions.js'
 
@@ -661,6 +661,7 @@ const isExpired = computed(() => {
 })
 
 const expireDaysText = computed(() => {
+  if (isPermanentExpiration(server.value.expire_date)) return trans.value.permanent
   if (!server.value.expire_date) return ''
   const expTime = new Date(server.value.expire_date).getTime()
   if (isNaN(expTime)) return ''

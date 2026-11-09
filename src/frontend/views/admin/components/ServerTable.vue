@@ -132,7 +132,7 @@
                 @click.stop="emitCopySpec(server, 'price', formatServerPrice(server))"
               >{{ formatServerPrice(server) }}</span>
             </td>
-            <td><span class="date-text">{{ server.expire_date || '-' }}</span></td>
+            <td><span class="date-text">{{ isPermanentExpiration(server.expire_date) ? trans.permanent : (server.expire_date || '-') }}</span></td>
             <td>
               <span
                 class="renewal-text"
@@ -176,7 +176,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { getFlagRegionCode, formatBytes } from '../../../utils/api'
 import { getPublicAssetUrl } from '../../../utils/config'
 import { currentLang } from '../../../utils/i18n'
-import { detectBillingCycle, detectCurrencySymbol, getBillingCycleOption, getLocalizedOptionField, isEnabledFlag, isFreePrice, normalizeCurrency, normalizePrice } from '../../../utils/server.js'
+import { detectBillingCycle, detectCurrencySymbol, getBillingCycleOption, getLocalizedOptionField, isEnabledFlag, isFreePrice, isPermanentExpiration, supportsAutoRenewal, normalizeCurrency, normalizePrice } from '../../../utils/server.js'
 import OsIcon from '../../../components/OsIcon.vue'
 import HelpTooltip from '../../../components/HelpTooltip.vue'
 
@@ -463,7 +463,7 @@ const formatServerPrice = (server) => {
   const cycleLabel = getLocalizedOptionField(option, 'shortLabel', currentLang.value)
   return `${currency}${trimDisplayPrice(price)}/${cycleLabel}`
 }
-const isServerAutoRenewal = (server) => isEnabledFlag(server.auto_renewal)
+const isServerAutoRenewal = (server) => isEnabledFlag(server.auto_renewal) && supportsAutoRenewal(detectBillingCycle(server.price) || server.billing_cycle, server.expire_date)
 const normalizeVersion = (version) => String(version || '').trim()
 const getAgentVersionClass = (version) => {
   const latest = normalizeVersion(props.latestAgentVersion)
