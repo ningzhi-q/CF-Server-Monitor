@@ -186,6 +186,15 @@ export function isPermanentExpiration(value) {
   return String(value || '').trim() === PERMANENT_EXPIRE_DATE;
 }
 
+// 只在用户选择计费周期时调用；载入现有节点不会改写到期日。
+export function applyBillingCycleDefaults(form, selectedCycle, enabledFields) {
+  form.billing_cycle = normalizeBillingCycle(selectedCycle);
+  if (form.billing_cycle !== 'one_time') return;
+  form.expire_date = PERMANENT_EXPIRE_DATE;
+  form.auto_renewal = false;
+  if (enabledFields) enabledFields.expire_date = true;
+}
+
 export function supportsAutoRenewal(billingCycle, expireDate) {
   return getBillingCycleOption(billingCycle).months > 0 && !isPermanentExpiration(expireDate);
 }

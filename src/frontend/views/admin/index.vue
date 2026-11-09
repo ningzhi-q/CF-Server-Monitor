@@ -97,11 +97,6 @@
             :class="{ active: activeTab === 'themeStore' }"
             @click="activeTab = 'themeStore'"
           >{{ trans.themeStore }}</button>
-          <button
-            class="tab-btn"
-            :class="{ active: activeTab === 'donation' }"
-            @click="activeTab = 'donation'"
-          >{{ trans.donation }}</button>
         </div>
 
         <ServerTable
@@ -178,10 +173,6 @@
           @alert-message="alertMessage = $event"
         />
 
-        <DonationPanel
-          :trans="trans"
-          :active-tab="activeTab"
-        />
       </div>
 
       <EditServerModal
@@ -589,23 +580,21 @@
         </div>
       </div>
 
-      <Footer />
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch, nextTick, inject } from 'vue'
+import { normalizeTgNotifySetting, isValidOfflineNotifyMinutes } from '../../utils/notifications.js'
 import { useRoute, useRouter } from 'vue-router'
 import TerminalHeader from '../../components/TerminalHeader.vue'
-import Footer from '../../components/Footer.vue'
 import HelpTooltip from '../../components/HelpTooltip.vue'
 import AdminLogin from './components/AdminLogin.vue'
 import ServerTable from './components/ServerTable.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 import DatabasePanel from './components/DatabasePanel.vue'
 import ThemeStorePanel from './components/ThemeStorePanel.vue'
-import DonationPanel from './components/DonationPanel.vue'
 import EditServerModal from './components/EditServerModal.vue'
 import BatchEditServersModal from './components/BatchEditServersModal.vue'
 import DeleteServerModal from './components/DeleteServerModal.vue'
@@ -674,16 +663,6 @@ const getMessage = (msg) => {
   return ''
 }
 
-const normalizeTgNotifySetting = (value) => {
-  if (value === true || value === 'true') return '5'
-  if (value === false || value === 'false' || value === undefined || value === null || value === '') return '0'
-
-  const minutes = Number(value)
-  if (!Number.isInteger(minutes) || minutes < 0 || minutes > 30) return '0'
-  if (minutes === 0) return '0'
-  // 最小 5 分钟：低于 5 的历史值（如 2、3、4）统一提升到 5
-  return String(Math.max(minutes, 5))
-}
 
 const isTgNotifyEnabled = (value) => normalizeTgNotifySetting(value) !== '0'
 
@@ -1556,6 +1535,11 @@ const saveSettings = async () => {
       validationError.value = trans.value.turnstileSecretKeyRequired
       return
     }
+  }
+
+  if (!isValidOfflineNotifyMinutes(settings.value.tg_notify)) {
+    validationError.value = trans.value.invalidOfflineNotifyMinutes
+    return
   }
 
   if (isTgNotifyEnabled(settings.value.tg_notify) || settings.value.online_notify || isExpireReminderEnabled(settings.value.expire_reminder) || isResourceAlertEnabled(settings.value.resource_alert_rules)) {

@@ -7,6 +7,32 @@ import { LANGUAGE_CODES } from '../src/frontend/locales/index.js';
 
 const NOW = Date.UTC(2026, 10, 9);
 
+test('user selection applies permanent defaults without changing previously loaded billing records', () => {
+  const form = { billing_cycle: 'month', expire_date: '2027-09-22', auto_renewal: true };
+  frontend.applyBillingCycleDefaults(form, 'one_time');
+  assert.deepEqual(form, { billing_cycle: 'one_time', expire_date: 'never', auto_renewal: false });
+  // 用户仍可取消永久，继续以一次性方式保存具体日期。
+  form.expire_date = '2027-09-22';
+  assert.equal(frontend.supportsAutoRenewal(form.billing_cycle, form.expire_date), false);
+  frontend.applyBillingCycleDefaults(form, 'year');
+  assert.equal(form.expire_date, '2027-09-22');
+  assert.equal(form.billing_cycle, 'year');
+  const loaded = { billing_cycle: 'one_time', expire_date: '2027-01-01', auto_renewal: false };
+  frontend.renewExpireDateIfNeeded(loaded.expire_date, loaded.billing_cycle, loaded.auto_renewal, NOW);
+  assert.equal(loaded.expire_date, '2027-01-01');
+});
+
+test('batch one-time selection includes expiration in the saved field selection', () => {
+  const form = { billing_cycle: 'month', expire_date: '', auto_renewal: true };
+  const enabled = { billing_cycle: true, expire_date: false, auto_renewal: false };
+  frontend.applyBillingCycleDefaults(form, 'one_time', enabled);
+  assert.equal(enabled.expire_date, true);
+  assert.equal(form.expire_date, 'never');
+  assert.equal(form.auto_renewal, false);
+  form.expire_date = '2027-11-09';
+  assert.equal(form.billing_cycle, 'one_time');
+});
+
 for (const [name, billing] of [['backend', backend], ['frontend', frontend]]) {
   test(`${name}: one-time billing normalizes and survives legacy price parsing`, () => {
     for (const alias of ['one_time', 'one-time', 'One time', '一次性']) {

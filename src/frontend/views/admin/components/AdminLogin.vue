@@ -39,12 +39,11 @@
         <button type="submit" class="login-btn">{{ loginLoading ? '⏳' : trans.login }}</button>
       </form>
     </div>
-    <Footer />
+
   </div>
 </template>
 
 <script setup>
-import Footer from '../../../components/Footer.vue'
 
 defineProps({
   trans: { type: Object, required: true },

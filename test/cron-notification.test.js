@@ -4,13 +4,30 @@ import worker from '../src/index.js';
 import { MetricsBroadcaster } from '../src/durable/MetricsBroadcaster.js';
 import { checkOfflineNodes, checkResourceAlerts, checkExpiringServers } from '../src/services/notification.js';
 import { clearAllCaches } from '../src/utils/cache.js';
-import { DEFAULT_NOTIFICATION_TEMPLATE, SITE_FIELDS, loadSiteSettings, normalizeOnlineNotify } from '../src/utils/settings.js';
+import { DEFAULT_NOTIFICATION_TEMPLATE, SITE_FIELDS, loadSiteSettings, normalizeOnlineNotify, normalizeTgNotify } from '../src/utils/settings.js';
+import { isValidOfflineNotifyMinutes, normalizeTgNotifySetting } from '../src/frontend/utils/notifications.js';
 import { getNotificationMessages } from '../src/services/notificationMessages.js';
 import { RESOURCE_ALERT_COMPACT_RESULT_FORMAT } from '../src/utils/config.js';
 
 const NOW = Date.UTC(2026, 9, 22, 12, 2);
 const MINUTE = 60_000;
 globalThis.WebSocketRequestResponsePair = class {};
+
+test('manual offline minutes preserve supported thresholds and agree with backend normalization', () => {
+  for (const minutes of [0, ...Array.from({ length: 29 }, (_, index) => index + 2)]) {
+    for (const value of [minutes, String(minutes)]) {
+      assert.equal(isValidOfflineNotifyMinutes(value), true);
+      assert.equal(normalizeTgNotifySetting(value), String(minutes));
+      assert.equal(normalizeTgNotifySetting(value), normalizeTgNotify(value));
+    }
+  }
+  for (const value of ['', ' ', null, undefined, false, 1, '1', 31, -1, 2.5, 'abc', NaN, Infinity]) {
+    assert.equal(isValidOfflineNotifyMinutes(value), false);
+    assert.equal(normalizeTgNotifySetting(value), '0');
+  }
+  assert.equal(normalizeTgNotifySetting(true), '5');
+  assert.equal(normalizeTgNotifySetting('true'), '5');
+});
 
 function makeSettings(overrides = {}) {
   return {
