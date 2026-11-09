@@ -63,28 +63,53 @@ export function normalizeLocationIp(value) {
   return null;
 }
 
-// Only fill absent/coarse Hong Kong city names. Never use a different country,
-// a region name as a city, or replace Cloudflare's approximate coordinates.
-export async function refineAutoLocation(input, ip, fetcher = fetch) {
+export function needsLocationRefinement(location) {
+  if (!location) return false;
+  return !location.city ||
+    (location.country === 'HK' && /^(hong kong|香港)$/i.test(location.city)) ||
+    (location.country === 'SG' && /^(singapore|新加坡)$/i.test(location.city));
+}
+
+// Fill absent/coarse city names without changing Cloudflare coordinate ownership.
+// A successful answer without finer detail is cached daily; a failure retries sooner.
+async function lookupAutoLocation(input, ip, fetcher = fetch) {
   const location = normalizeAutoLocation(input);
   const address = normalizeLocationIp(ip);
-  if (!location || !address || (location.city && !(location.country === 'HK' && /^(hong kong|香港)$/i.test(location.city)))) return location;
+  const unchanged = { location, retry: false };
+  const failed = { location, retry: true };
+  if (!location || !address || !needsLocationRefinement(location)) return unchanged;
   try {
-    const response = await fetcher(`https://api.db-ip.com/v2/free/${encodeURIComponent(address)}`, { signal: AbortSignal.timeout(1500) });
-    if (!response.ok) return location;
+    const response = await fetcher(`https://api.db-ip.com/v2/free/${encodeURIComponent(address)}`, { signal: AbortSignal.timeout(3000) });
+    if (!response.ok) return failed;
     const body = await response.text();
-    if (body.length > 4096) return location;
+    if (body.length > 4096) return failed;
     const data = JSON.parse(body);
     if (!data || typeof data !== 'object' || Array.isArray(data) || data.ipAddress !== address || data.countryCode !== location.country ||
-        typeof data.city !== 'string' || !data.city.trim()) return location;
+        typeof data.city !== 'string' || !data.city.trim() || data.city.length > 160 || /[\x00-\x1f]/.test(data.city)) return failed;
+    const refined = patch => {
+      const result = normalizeAutoLocation({ ...location, ...patch });
+      return result ? { location: result, retry: false } : failed;
+    };
     if (/^(hong kong|香港)$/i.test(data.city.trim())) {
       // HK districts/areas are not independent cities. Preserve the original city
       // and expose the provider's narrower administrative reference separately.
-      if (location.country !== 'HK' || typeof data.stateProv !== 'string' || /^(hong kong|香港)$/i.test(data.stateProv.trim())) return location;
-      return normalizeAutoLocation({ ...location, subdivision: data.stateProv, subdivision_source: 'db-ip' }) || location;
+      if (location.country !== 'HK' || typeof data.stateProv !== 'string' || !data.stateProv.trim() || /^(hong kong|香港)$/i.test(data.stateProv.trim())) return unchanged;
+      if (data.stateProv.length > 160 || /[\x00-\x1f]/.test(data.stateProv)) return failed;
+      return refined({ subdivision: data.stateProv, subdivision_source: 'db-ip' });
     }
-    return normalizeAutoLocation({ ...location, city: data.city.trim(), city_source: 'db-ip' }) || location;
-  } catch { return location; }
+    if (location.country === 'SG') {
+      // Singapore is a city-state: a provider's parenthesised locality is an area,
+      // not another city. Keep the original city and publish the area separately.
+      const area = /^singapore\s*\(([^()]+)\)$/i.exec(data.city.trim())?.[1]?.trim();
+      if (area && !/^(singapore|新加坡)$/i.test(area)) return refined({ subdivision: area, subdivision_source: 'db-ip' });
+      if (/^(singapore|新加坡)$/i.test(data.city.trim())) return unchanged;
+    }
+    return refined({ city: data.city.trim(), city_source: 'db-ip' });
+  } catch { return failed; }
+}
+
+export async function refineAutoLocation(input, ip, fetcher = fetch) {
+  return (await lookupAutoLocation(input, ip, fetcher)).location;
 }
 
 async function ensureColumn(db, state) {
@@ -121,11 +146,18 @@ export async function saveAutoLocation(db, server, input, now = Date.now(), opti
   }
   if (entry.pending) await entry.pending;
   const ip = normalizeLocationIp(options.ip);
-  if (ip && (!location.city || (location.country === 'HK' && /^(hong kong|香港)$/i.test(location.city)))) {
+  if (ip && needsLocationRefinement(location)) {
     const key = JSON.stringify([ip, location.country, location.city, location.latitude, location.longitude]);
     if (entry.lookup?.key !== key || now >= entry.lookup.expiresAt) {
       // Promise is installed before awaiting, deduplicating concurrent reports.
-      entry.lookup = { key, expiresAt: now + REFRESH_MS, result: refineAutoLocation(location, ip, options.fetcher) };
+      const previous = entry.lookup?.key === key ? entry.lookup : null;
+      const lookup = { key, expiresAt: Infinity, result: null };
+      lookup.result = lookupAutoLocation(location, ip, options.fetcher).then(result => {
+        lookup.expiresAt = now + (result.retry ? RETRY_MS : REFRESH_MS);
+        if (result.retry && previous) return previous.result;
+        return result.location;
+      });
+      entry.lookup = lookup;
     }
     location = { ...await entry.lookup.result, observed_at: now };
   }
