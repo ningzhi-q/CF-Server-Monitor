@@ -12,7 +12,7 @@
 //   通过 setWebSocketAutoResponse 自动响应 ping，无需唤醒 DO。
 // - Agent 上报连接使用标准 WebSocket API，避免高频指标消息计为 hibernation wakeup。
 
-import { AUTO_LOCATION_HEADER, parseAutoLocation, saveAutoLocation } from '../utils/autoLocation.js';
+import { AUTO_LOCATION_HEADER, AUTO_LOCATION_IP_HEADER, normalizeLocationIp, parseAutoLocation, saveAutoLocation } from '../utils/autoLocation.js';
 import { saveMetricsHistory } from '../database/schema.js';
 import { evaluateTrafficAlert } from '../services/notification.js';
 import { ensureServerOptimization } from '../database/indexOptimization.js';
@@ -1401,7 +1401,7 @@ export class MetricsBroadcaster {
     const latestSample = samples[samples.length - 1];
     const latestMetrics = getReportMetrics(data, latestSample);
     const historyAggregate = collectHistoryMetricAggregates(samples);
-    const location = await saveAutoLocation(this.env.DB, context.serverDetail, context.attachment.autoLocation);
+    const location = await saveAutoLocation(this.env.DB, context.serverDetail, context.attachment.autoLocation, Date.now(), { ip: context.attachment.locationIp });
     const broadcastSamples = toBroadcastSamples(
       context.serverId,
       samples,
@@ -1479,6 +1479,7 @@ export class MetricsBroadcaster {
       historyPartitionId: 0,
       region: request.headers.get('cf-ipcountry') || '',
       autoLocation: parseAutoLocation(request.headers.get(AUTO_LOCATION_HEADER)),
+      locationIp: normalizeLocationIp(request.headers.get(AUTO_LOCATION_IP_HEADER)),
       agentVersion: normalizeAgentVersion(request.headers.get('X-Agent-Version')),
       reportIntervalMs: AGENT_DEFAULT_HISTORY_WRITE_INTERVAL_MS,
       wssReportIntervalMs: DEFAULT_WSS_REPORT_INTERVAL * 1000,
