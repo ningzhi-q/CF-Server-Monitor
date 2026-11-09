@@ -24,7 +24,7 @@ import {
   normalizePctOrNull,
   normalizeTrafficLimitGb
 } from '../utils/traffic.js';
-import { detectBillingCycle, isEnabledFlag, normalizeBillingCycle, renewExpireDateIfNeeded } from '../utils/serverBilling.js';
+import { detectBillingCycle, isEnabledFlag, normalizeBillingCycle, isPermanentExpiration, supportsAutoRenewal, renewExpireDateIfNeeded } from '../utils/serverBilling.js';
 import {
   NOTIFICATION_MAX_RETRIES,
   NOTIFICATION_RETRY_DELAY_MS,
@@ -1337,7 +1337,7 @@ export async function checkExpiringServers(db, options = {}) {
     const currentDateSerial = getZonedDateSerial(now, siteSettings.notification_timezone);
 
     for (const s of allServers) {
-      if (!s.expire_date) continue;
+      if (!s.expire_date || isPermanentExpiration(s.expire_date)) continue;
 
       const billingCycle = normalizeBillingCycle(detectBillingCycle(s.price) || s.billing_cycle);
       // 续费时机 = 到期日 - min(提醒天数, 5)，最长提前 5 天
@@ -1353,7 +1353,7 @@ export async function checkExpiringServers(db, options = {}) {
       }
 
       // 勾选自动续费的节点只走「续费成功」提醒，不计入到期提醒
-      if (isEnabledFlag(s.auto_renewal)) continue;
+      if (isEnabledFlag(s.auto_renewal) && supportsAutoRenewal(billingCycle, s.expire_date)) continue;
 
       if (!shouldNotify) continue;
 

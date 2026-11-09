@@ -285,6 +285,7 @@ export default {
   hostnameLabel: 'Hostname',
   groupName: 'Nama Grup',
   expirationDate: 'Tanggal Kedaluwarsa',
+  permanent: 'Permanen',
   trafficLimit: 'Batas Trafik',
   autoUpdate: 'Pembaruan Otomatis',
   autoUpdateRiskTitle: 'Risiko Pembaruan Otomatis',

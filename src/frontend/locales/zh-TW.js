@@ -286,6 +286,7 @@ export default {
   hostnameLabel: '主機名稱',
   groupName: '群組名稱',
   expirationDate: '到期時間',
+  permanent: '永久',
   trafficLimit: '流量限制',
   autoUpdate: '自動更新',
   autoUpdateRiskTitle: '自動更新風險提示',

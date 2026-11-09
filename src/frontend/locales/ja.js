@@ -285,6 +285,7 @@ export default {
   hostnameLabel: 'ホスト名',
   groupName: 'グループ名',
   expirationDate: '有効期限',
+  permanent: '無期限',
   trafficLimit: 'トラフィック上限',
   autoUpdate: '自動更新',
   autoUpdateRiskTitle: '自動更新のリスク',

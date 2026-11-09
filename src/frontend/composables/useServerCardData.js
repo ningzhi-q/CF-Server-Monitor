@@ -3,7 +3,7 @@ import { formatBytes, getFlagRegionCode, isServerOnline } from '../utils/api'
 import { getPublicAssetUrl } from '../utils/config'
 import { currentLang, useTranslation } from '../utils/i18n'
 import { LATENCY_WINDOW, PING } from '../utils/constants'
-import { formatBillingPrice } from '../utils/server.js'
+import { formatBillingPrice, isPermanentExpiration } from '../utils/server.js'
 
 export const DEFAULT_SERVER_CARD_CONFIG = {
   show_price: true,
@@ -180,6 +180,7 @@ export function useServerCardData(props) {
   const formatDateOnly = (value) => {
     const raw = String(value || '').trim()
     if (!raw) return ''
+    if (isPermanentExpiration(raw)) return trans.value.permanent
     const dateOnly = raw.match(/^(\d{4}-\d{2}-\d{2})/)?.[1]
     if (dateOnly) return dateOnly
 
@@ -253,6 +254,7 @@ export function useServerCardData(props) {
   })
 
   const expireText = computed(() => {
+    if (isPermanentExpiration(props.server.expire_date)) return trans.value.permanent
     const expTime = new Date(props.server.expire_date).getTime()
     if (isNaN(expTime)) return ''
     const diff = expTime - currentTime.value
