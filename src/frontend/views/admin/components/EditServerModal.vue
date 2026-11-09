@@ -50,7 +50,7 @@
 
         <div class="form-group flex-1">
           <label class="form-label">{{ trans.billingCycle }}</label>
-          <select v-model="editForm.billing_cycle" class="form-select">
+          <select :value="editForm.billing_cycle" @change="applyBillingCycleDefaults(editForm, $event.target.value)" class="form-select">
             <option v-for="item in billingCycleOptions" :key="item.value" :value="item.value">{{ cycleLabel(item) }}</option>
           </select>
         </div>
@@ -272,11 +272,12 @@
 
 <script setup>
 import { computed, watch } from 'vue'
+import { normalizeTgNotifySetting } from '../../../utils/notifications.js'
 import ExpirationDateInput from './ExpirationDateInput.vue'
 import HelpTooltip from '../../../components/HelpTooltip.vue'
 import { PING_NODE_FIELDS, validatePingNode } from '../../../utils/pingNode.js'
 import { currentLang } from '../../../utils/i18n.js'
-import { BILLING_CYCLES, CURRENCY_OPTIONS, getLocalizedOptionField, normalizePrice, renewExpireDateIfNeeded, supportsAutoRenewal } from '../../../utils/server.js'
+import { applyBillingCycleDefaults, BILLING_CYCLES, CURRENCY_OPTIONS, getLocalizedOptionField, normalizePrice, renewExpireDateIfNeeded, supportsAutoRenewal } from '../../../utils/server.js'
 
 const editForm = defineModel('editForm', { type: Object, required: true })
 
@@ -316,17 +317,6 @@ const currencySelectOptions = computed(() => {
 const cycleLabel = (item) => getLocalizedOptionField(item, 'label', currentLang.value)
 const currencyLabel = (item) => `${item.symbol} ${getLocalizedOptionField(item, 'name', currentLang.value)}`
 
-const normalizeTgNotifySetting = (value) => {
-  if (value === true || value === 'true') return '5'
-  if (value === false || value === 'false' || value === undefined || value === null || value === '') return '0'
-
-  const minutes = Number(value)
-  if (Number.isInteger(minutes) && (minutes === 0 || (minutes >= 2 && minutes <= 30))) {
-    return String(minutes)
-  }
-
-  return '0'
-}
 
 const isOfflineNotifyEnabled = computed(() => normalizeTgNotifySetting(props.settings.tg_notify) !== '0')
 const hasNodeNotificationOptions = computed(() => (

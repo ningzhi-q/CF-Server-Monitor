@@ -243,10 +243,9 @@
         <div class="section-title"><span>▸</span> {{ trans.notifications }}</div>
         <div class="form-row">
           <div class="form-group flex-1">
-            <label class="form-label">{{ trans.offlineAlert }}</label>
-            <select v-model="settings.tg_notify" class="form-select">
-              <option v-for="option in offlineNotifyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
+            <label class="form-label" for="offline-notify-minutes">{{ trans.offlineAlert }}</label>
+            <input id="offline-notify-minutes" type="number" inputmode="numeric" v-model.number="settings.tg_notify" class="form-input" min="0" :max="OFFLINE_NOTIFY_MINUTES_MAX" step="1" aria-describedby="offline-notify-tip">
+            <p id="offline-notify-tip" class="text-secondary text-sm">{{ trans.offlineNotifyInputTip }}</p>
           </div>
 
           <div class="form-group flex-1">
@@ -846,6 +845,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { OFFLINE_NOTIFY_MINUTES_MAX } from '../../../utils/notifications.js'
 import HelpTooltip from '../../../components/HelpTooltip.vue'
 import { FRONTEND_WS_TIMEOUT_MINUTES_MAX, HISTORY } from '../../../utils/constants.js'
 import { PING_NODE_FIELDS, validatePingNode } from '../../../utils/pingNode.js'
@@ -999,20 +999,6 @@ const cspErrors = reactive({
   csp_static: '',
   csp_api: ''
 })
-
-const offlineNotifyOptions = computed(() => [
-  { value: '0', label: `${props.trans.disabled}` },
-  ...[5, 6, 7, 8, 9, 10, 15, 20, 30].map(minutes => {
-    const label = props.trans.notifyOfflineMinutes
-      ? props.trans.notifyOfflineMinutes.replace('{minutes}', minutes)
-      : `${minutes} min`
-
-    return {
-      value: String(minutes),
-      label: `${label}`
-    }
-  })
-])
 
 const expireReminderOptions = computed(() => [
   { value: '0', label: `${props.trans.disabled}` },

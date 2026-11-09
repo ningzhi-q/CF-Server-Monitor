@@ -31,7 +31,7 @@
             <input type="text" v-model="form.price" class="form-input" :disabled="!enabled.price" placeholder="40.00">
           </BatchEditField>
           <BatchEditField :enabled="enabled.billing_cycle" :label="trans.billingCycle" @toggle="toggleField('billing_cycle', $event)">
-            <select v-model="form.billing_cycle" class="form-select" :disabled="!enabled.billing_cycle">
+            <select :value="form.billing_cycle" @change="applyBillingCycleDefaults(form, $event.target.value, enabled)" class="form-select" :disabled="!enabled.billing_cycle">
               <option v-for="item in billingCycleOptions" :key="item.value" :value="item.value">{{ cycleLabel(item) }}</option>
             </select>
           </BatchEditField>
@@ -172,7 +172,7 @@ import { computed, watch } from 'vue'
 import ExpirationDateInput from './ExpirationDateInput.vue'
 import BatchEditField from './BatchEditField.vue'
 import { currentLang } from '../../../utils/i18n.js'
-import { BILLING_CYCLES, CURRENCY_OPTIONS, getLocalizedOptionField, supportsAutoRenewal } from '../../../utils/server.js'
+import { applyBillingCycleDefaults, BILLING_CYCLES, CURRENCY_OPTIONS, getLocalizedOptionField, supportsAutoRenewal } from '../../../utils/server.js'
 
 const form = defineModel('form', { type: Object, required: true })
 const enabled = defineModel('enabled', { type: Object, required: true })
