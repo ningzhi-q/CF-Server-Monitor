@@ -204,6 +204,8 @@ export default {
   historyPointCount: '{points} points',
   notifications: 'Notifications',
   offlineAlert: 'Offline Alert',
+  onlineNotify: 'Online Reminder',
+  onlineNotifyTip: 'Notify once when an offline node comes back online. Works without offline alerts, using 5 minutes without a report as the offline threshold. Nodes with offline notifications disabled are excluded.',
   expireReminder: 'Expiration Reminder',
   disabled: 'Disabled',
   enable: 'Enable',

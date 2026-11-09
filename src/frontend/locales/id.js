@@ -204,6 +204,8 @@ export default {
   historyPointCount: '{points} poin',
   notifications: 'Notifikasi',
   offlineAlert: 'Peringatan Offline',
+  onlineNotify: 'Pengingat Online',
+  onlineNotifyTip: 'Kirim satu notifikasi saat node offline kembali online. Dapat diaktifkan tanpa peringatan offline, dengan ambang 5 menit tanpa laporan. Node dengan notifikasi offline dinonaktifkan tidak diperiksa.',
   expireReminder: 'Pengingat Kedaluwarsa',
   disabled: 'Nonaktif',
   enable: 'Aktifkan',

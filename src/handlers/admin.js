@@ -1,7 +1,7 @@
 import { buildAuthCookie, buildClearAuthCookie, checkAuth, simpleAuthResponse, validateCredentials, generateToken } from '../middleware/auth.js';
 import { getLatestMetricsForAllServers } from '../database/schema.js';
 import { getAllServers, clearServersListCache } from '../utils/cache.js';
-import { clearAppearanceSettingsCache, isValidThemeOptions, isWssReportConfigured, isWssReportEnabled, normalizeBooleanSetting, normalizeDefaultLanguage, normalizeDisplayMode, normalizeExpireNotificationTime, normalizeExpireReminder, normalizeFrontendWsTimeoutMinutes, normalizeLongHistoryPoints, normalizeNotificationLanguage, normalizeNotificationTemplate, normalizeNotificationTimezone, normalizeNotificationWebhookBody, normalizeNotificationWebhookFormat, normalizeNotificationWebhookHeaders, normalizeNotificationWebhookMethod, normalizePreferredTheme, normalizeResourceAlertRules, normalizeTgNotify, normalizeWssReportHours, saveSiteOptions, saveAppearanceOptions, saveThemeOptions, validateUserAgent, SITE_FIELDS, APPEARANCE_FIELDS, IMPORTABLE_SITE_FIELDS, IMPORTABLE_APPEARANCE_FIELDS, loadSiteSettings, loadAppearanceOptions } from '../utils/settings.js';
+import { clearAppearanceSettingsCache, isValidThemeOptions, isWssReportConfigured, isWssReportEnabled, normalizeBooleanSetting, normalizeDefaultLanguage, normalizeDisplayMode, normalizeExpireNotificationTime, normalizeExpireReminder, normalizeFrontendWsTimeoutMinutes, normalizeLongHistoryPoints, normalizeNotificationLanguage, normalizeNotificationTemplate, normalizeNotificationTimezone, normalizeNotificationWebhookBody, normalizeNotificationWebhookFormat, normalizeNotificationWebhookHeaders, normalizeNotificationWebhookMethod, normalizePreferredTheme, normalizeResourceAlertRules, normalizeTgNotify, normalizeOnlineNotify, normalizeWssReportHours, saveSiteOptions, saveAppearanceOptions, saveThemeOptions, validateUserAgent, SITE_FIELDS, APPEARANCE_FIELDS, IMPORTABLE_SITE_FIELDS, IMPORTABLE_APPEARANCE_FIELDS, loadSiteSettings, loadAppearanceOptions } from '../utils/settings.js';
 import { mergeMetricsIntoServer } from '../utils/metrics.js';
 import { normalizePctOrNull } from '../utils/traffic.js';
 import { verifyTurnstileToken, hashPassword } from '../utils/common.js';
@@ -885,11 +885,15 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
         }
       }
 
-      // 如果 tg_notify 或 expire_reminder 开启，验证 tg_bot_token 不为空
+      // 任一通知功能开启时，验证有效通知渠道
       const hasResourceAlertRulesInput = settings.resource_alert_rules !== undefined;
       const tgNotify = settings.tg_notify !== undefined
         ? normalizeTgNotify(settings.tg_notify)
         : normalizeTgNotify(sys?.tg_notify);
+      const onlineNotify = normalizeOnlineNotify(
+        settings.online_notify !== undefined ? settings.online_notify : sys?.online_notify,
+        tgNotify
+      );
       const expireReminder = settings.expire_reminder !== undefined
         ? normalizeExpireReminder(settings.expire_reminder)
         : normalizeExpireReminder(sys?.expire_reminder);
@@ -898,7 +902,7 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
         ? normalizeResourceAlertRules(settings.resource_alert_rules)
         : currentResourceAlertRules;
       const resourceAlertEnabled = normalizedResourceAlertRules.length > 0;
-      if (tgNotify !== '0' || expireReminder !== '0' || resourceAlertEnabled) {
+      if (tgNotify !== '0' || onlineNotify === 'true' || expireReminder !== '0' || resourceAlertEnabled) {
         const webhookEnabled = settings.notification_webhook_enabled !== undefined
           ? normalizeBooleanSetting(settings.notification_webhook_enabled) === 'true'
           : normalizeBooleanSetting(sys?.notification_webhook_enabled) === 'true';
@@ -986,6 +990,8 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
             siteOptions[field] = pingNodes.values[field];
           } else if (field === 'tg_notify') {
             siteOptions[field] = tgNotify;
+          } else if (field === 'online_notify') {
+            siteOptions[field] = onlineNotify;
           } else if (field === 'expire_reminder') {
             siteOptions[field] = expireReminder;
           } else if (field === 'long_history_points') {

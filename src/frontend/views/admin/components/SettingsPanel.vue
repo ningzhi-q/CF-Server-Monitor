@@ -250,6 +250,17 @@
           </div>
 
           <div class="form-group flex-1">
+            <label class="form-label" for="online-notify">
+              {{ trans.onlineNotify }}
+              <HelpTooltip :text="trans.onlineNotifyTip" />
+            </label>
+            <select id="online-notify" v-model="settings.online_notify" class="form-select">
+              <option :value="false">{{ trans.disabled }}</option>
+              <option :value="true">{{ trans.enabled }}</option>
+            </select>
+          </div>
+
+          <div class="form-group flex-1">
             <label class="form-label">{{ trans.expireReminder }}</label>
             <select v-model="selectedExpireReminder" class="form-select">
               <option v-for="option in expireReminderOptions" :key="option.value" :value="option.value">{{ option.label }}</option>

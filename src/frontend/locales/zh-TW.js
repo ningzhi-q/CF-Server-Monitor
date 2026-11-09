@@ -205,6 +205,8 @@ export default {
   historyPointCount: '{points} 個點',
   notifications: '通知',
   offlineAlert: '離線告警',
+  onlineNotify: '上線提醒',
+  onlineNotifyTip: '節點離線後恢復上線時通知一次，可單獨啟用。關閉離線告警時，以 5 分鐘未回報判定離線；已停用離線通知的節點不參與偵測。',
   expireReminder: '到期提醒',
   disabled: '停用',
   enable: '開啟',

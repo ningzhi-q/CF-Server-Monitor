@@ -204,6 +204,8 @@ export default {
   historyPointCount: '{points} ポイント',
   notifications: '通知',
   offlineAlert: 'オフライン通知',
+  onlineNotify: 'オンライン復帰通知',
+  onlineNotifyTip: 'オフラインのノードが復帰したときに一度通知します。単独で有効にでき、オフライン通知が無効の場合は 5 分間の報告停止をオフラインと判定します。個別にオフライン通知を無効にしたノードは対象外です。',
   expireReminder: '有効期限リマインダー',
   disabled: '無効',
   enable: '有効化',

@@ -204,6 +204,8 @@ export default {
   historyPointCount: '{points} points',
   notifications: 'Notifications',
   offlineAlert: 'Alerte hors ligne',
+  onlineNotify: 'Notification de reconnexion',
+  onlineNotifyTip: 'Notifie une fois quand un nœud hors ligne se reconnecte. Fonctionne sans alerte hors ligne : 5 minutes sans rapport indiquent une déconnexion. Les nœuds dont les notifications hors ligne sont désactivées sont exclus.',
   expireReminder: 'Rappel d’expiration',
   disabled: 'Désactivé',
   enable: 'Activer',

@@ -2,6 +2,7 @@ import { getLatestTimestampsForAllServers } from '../database/schema.js';
 import { clearServersListCache, getAllServers } from '../utils/cache.js';
 import {
   DEFAULT_NOTIFICATION_TEMPLATE,
+  TG_NOTIFY_LEGACY_TRUE_MINUTES,
   getExpireReminderDays,
   getResourceAlertConfig,
   getResourceAlertRuleThresholds,
@@ -9,6 +10,7 @@ import {
   loadSiteSettings,
   normalizeExpireNotificationTime,
   normalizeBooleanSetting,
+  normalizeOnlineNotify,
   normalizeNotificationTemplate,
   normalizeNotificationTimezone,
   normalizeNotificationWebhookBody,
@@ -1044,7 +1046,9 @@ export async function checkOfflineNodes(db, options = {}) {
   const siteSettings = options.siteSettings ?? await loadSiteSettings(db);
   const tgNotifyMinutes = getTgNotifyMinutes(siteSettings.tg_notify);
 
-  if (tgNotifyMinutes === 0 || !hasNotificationTarget(siteSettings)) return;
+  const onlineNotifyEnabled = normalizeOnlineNotify(siteSettings.online_notify, siteSettings.tg_notify) === 'true';
+
+  if ((tgNotifyMinutes === 0 && !onlineNotifyEnabled) || !hasNotificationTarget(siteSettings)) return;
 
   try {
     const servers = (await getAllServers(db)).filter(server => server.offline_notify_disabled !== '1');
@@ -1071,7 +1075,8 @@ export async function checkOfflineNodes(db, options = {}) {
     }
 
     const now = Date.now();
-    const offlineThreshold = tgNotifyMinutes * 60 * 1000;
+    // 单独开启上线提醒时，沿用旧版默认的 5 分钟离线阈值，静默记录离线状态。
+    const offlineThreshold = (tgNotifyMinutes || TG_NOTIFY_LEGACY_TRUE_MINUTES) * 60 * 1000;
     const offlineNodes = [];
     const recoveredNodes = [];
 
@@ -1103,7 +1108,7 @@ export async function checkOfflineNodes(db, options = {}) {
     }
 
     const messages = getNotificationMessages(siteSettings);
-    if (offlineNodes.length > 0) {
+    if (tgNotifyMinutes > 0 && offlineNodes.length > 0) {
       const nodeList = offlineNodes
         .map(n => `${n.name}  ${messages.lastReport(formatLastReportTime(n.lastReportTime, siteSettings))}`)
         .join('\n');
@@ -1117,7 +1122,7 @@ export async function checkOfflineNodes(db, options = {}) {
       });
     }
 
-    if (recoveredNodes.length > 0) {
+    if (onlineNotifyEnabled && recoveredNodes.length > 0) {
       const nodeList = recoveredNodes.map(n => n.name).join('\n');
       const msg = nodeList;
       await sendNotification(siteSettings, msg, {

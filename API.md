@@ -1343,6 +1343,7 @@ Header：`X-Turnstile-Token: <token>`（当 `site_options.turnstile_enabled` 或
     "frontend_ws_timeout_minutes": "20",
     "long_history_points": "120",
     "tg_notify": "0",
+    "online_notify": "false",
     "tg_bot_token": "",
     "tg_chat_id": "",
     "notification_timezone": "UTC",
@@ -1381,7 +1382,8 @@ Header：`X-Turnstile-Token: <token>`（当 `site_options.turnstile_enabled` 或
 - `theme_url`：可单独通过 `{"settings":{"theme_url":"..."}}` 保存；允许 `https://github.com/<owner>/<repo>/tree/<commit-or-branch>[/theme-subdir]` 格式。保存前会请求对应 raw `index.html` 验证可用性，失败返回 `400 invalidThemeUrl`，不会保存
 - Ping 节点字段：仅校验本次请求中出现的 `custom_ct/custom_cu/custom_cm/custom_bd` 字段，因此只保存 `theme_url` 不会触发 Ping 节点格式校验
 - Turnstile：本次请求把 `turnstile_enabled` 或 `turnstile_login_enabled` 设为 `true` 时，必须同时提供非空 `turnstile_site_key` 与 `turnstile_secret_key`
-- 通知：规范化后的 `tg_notify` 非 `0`，或 `expire_reminder` 为 `1`-`365` 时，必须提供非空 `tg_bot_token`
+- 通知：规范化后的 `tg_notify` 非 `0`、`online_notify` 为 `true`、`expire_reminder` 为 `1`-`365`，或存在资源告警规则时，必须配置有效通知渠道。内置渠道（含 SMTP）要求非空 `tg_bot_token`；自定义 Webhook 渠道要求非空 `notification_webhook_url`。部分更新使用本次字段与现有配置合并后的有效值校验
+- `online_notify`：上线提醒独立开关，规范为 `'true'|'false'`。节点由离线恢复上线时通知一次，沿用已有恢复事件文案和通知模板。缺失、`null` 或空字符串时，按 `tg_notify` 是否开启兼容旧版恢复通知；显式关闭优先。支持设置导入导出，详见 [上线提醒说明](docs/online-notifications.md)
 - `notification_timezone`：通知输出时间和到期提醒计划使用的 IANA 时区；缺失或非法值回退为 `UTC`
 - `expire_notification_time`：到期提醒每天在通知时区内执行的小时，取值 `0`-`23`；缺失或非法值回退为 `12`
 - `appearance_options` / `theme_options`：必须是非数组对象；`display_mode` 规范为 `bar` / `ring` / `table`；`preferred_theme` 规范为 `auto` / `dark` / `light`，默认 `auto`；`default_language` 规范为 `auto` / `zh` / `en`，默认 `auto`
@@ -1948,7 +1950,8 @@ UUID 缺失或格式非法时返回 `400 { "error": "invalidServerId", "code": 4
   show_tf: 'true' | 'false',
   frontend_ws_timeout_minutes: string, // '0'-'1440'；0 = 不超时
   long_history_points: '60' | '120' | '180' | '240',
-  tg_notify: '0' | '2' ... '30',    // 0 = 关闭；旧值 false 兼容为 0，true 兼容为 5
+  tg_notify: '0' | '2' ... '30',    // 0 = 关闭离线告警；旧值 false 兼容为 0，true 兼容为 5
+  online_notify: 'true' | 'false', // 独立上线提醒；旧设置缺失时随 tg_notify 开启
   tg_bot_token: string,
   tg_chat_id: string,
   turnstile_enabled: 'true' | 'false',
@@ -1996,12 +1999,14 @@ Worker 同时注册了 cron 触发器（`scheduled` handler），可在 `wrangle
 
 | Cron          | 行为              | 备注                                                             |
 | ------------- | --------------- | -------------------------------------------------------------- |
-| `*/1 * * * *` | 每分钟：检测离线节点、资源告警 | `checkOfflineNodes`、`checkResourceAlerts`（通知） |
+| `*/1 * * * *` | 每分钟：检测离线/上线节点、资源告警 | `checkOfflineNodes`、`checkResourceAlerts`（通知） |
 | `0 * * * *`   | 每小时：根据 UTC 日期分支 | 见下表                                                            |
 | <br />        | 每周日 0 点：表轮换    | `weeklyCleanup`（删除旧表、重命名 metrics\_history → metrics\_history\_old、创建新表） |
 | <br />        | 每小时按通知时区/到期提醒时间判断是否执行到期检测 | `checkExpiringServers` |
 
-每周日 00:00–00:04 UTC 的表轮换窗口内，分钟任务会跳过离线节点检测。
+每周日 00:00–00:04 UTC 的表轮换窗口内，分钟任务会跳过离线/上线节点检测。
+
+离线与上线开关至少开启一个且配置了通知渠道时，分钟任务共用一次最新上报时间查询及持久化的 `alert_state` 检测状态变化。离线告警开启时使用 `tg_notify` 的分钟阈值；只开启上线提醒时，超过 5 分钟无上报即静默记录离线。恢复后的下一次检测发送一次上线提醒；当前已在线且没有离线记录的节点不发送初始化提醒。`offline_notify_disabled = '1'` 的节点沿用旧行为，不参与两类检测。
 
 DEBUG 模式（`env.DEBUG=1`）下额外提供：
 

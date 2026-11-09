@@ -11,7 +11,8 @@ import {
   IMPORTABLE_SITE_FIELDS,
   IMPORTABLE_APPEARANCE_FIELDS,
   SETTINGS_EXCLUDED_FIELDS,
-  saveAppearanceOptions
+  saveAppearanceOptions,
+  loadSiteSettings
 } from '../src/utils/settings.js';
 
 // 用真实 D1 跑导入导出：字段过滤和 JSON 合并逻辑都在 SQL 里，替身证明不了正确性。
@@ -320,6 +321,7 @@ const RICH_SITE = {
   frontend_ws_timeout_minutes: '30',
   long_history_points: '240',
   tg_notify: '10',
+  online_notify: 'true',
   tg_bot_token: '123456:token',
   tg_chat_id: '-1001234567890',
   notification_timezone: 'Asia/Shanghai',
@@ -491,4 +493,77 @@ test('导出 → 导入 → 再导出：设置与服务器保持一致', async (
 
   clearSiteSettingsCache();
   clearAppearanceSettingsCache();
+});
+
+
+async function notificationAdminCall(body) {
+  const env = { API_SECRET: 'secret', DB: db };
+  const sys = { ...await loadSiteSettings(db), password: 'hashed-password', jwt_secret: JWT_SECRET };
+  const token = await generateToken(env, sys);
+  const response = await handleAdminAPI(
+    createRequest(token, body), env, sys, null, { waitUntil() {} }
+  );
+  return { status: response.status, data: await response.json() };
+}
+
+const saveNotificationSettings = settings => notificationAdminCall({ action: 'save_settings', settings });
+
+test('单独启用上线提醒必须配置通知渠道，校验失败不写库', async () => {
+  const initial = { jwt_secret: JWT_SECRET, tg_notify: '0', expire_reminder: '0', resource_alert_rules: [] };
+  await seedSettings(initial, {});
+  let result = await saveNotificationSettings({ online_notify: true });
+  assert.equal(result.status, 400);
+  assert.equal(result.data.error, 'tgBotTokenRequired');
+  assert.deepEqual(await readSetting('site_options'), initial);
+
+  result = await saveNotificationSettings({ online_notify: true, notification_webhook_enabled: true, notification_webhook_url: '' });
+  assert.equal(result.status, 400);
+  assert.equal(result.data.error, 'notificationWebhookUrlRequired');
+  assert.deepEqual(await readSetting('site_options'), initial);
+
+  result = await saveNotificationSettings({ online_notify: true, notification_webhook_enabled: true, notification_webhook_url: 'https://example.com/hook' });
+  assert.equal(result.status, 200);
+  assert.equal((await readSetting('site_options')).online_notify, 'true');
+  assert.equal((await loadSiteSettings(db)).online_notify, 'true');
+});
+
+test('上线开关保存与回读保持一致，部分更新保留原值并校验有效渠道', async () => {
+  await seedSettings({ jwt_secret: JWT_SECRET, tg_notify: '0', tg_bot_token: 'test-token', expire_reminder: '0' }, {});
+  for (const [input, expected] of [[true, 'true'], [false, 'false'], ['on', 'true'], ['off', 'false']]) {
+    const saved = await saveNotificationSettings({ online_notify: input });
+    assert.equal(saved.status, 200);
+    assert.equal((await readSetting('site_options')).online_notify, expected);
+    const loaded = await notificationAdminCall({ action: 'get_settings' });
+    assert.equal(loaded.data.settings.online_notify, expected);
+  }
+  await saveNotificationSettings({ online_notify: true });
+  const partial = await saveNotificationSettings({ show_price: 'false' });
+  assert.equal(partial.status, 200);
+  assert.equal((await readSetting('site_options')).online_notify, 'true');
+  const rejected = await saveNotificationSettings({ tg_bot_token: '' });
+  assert.equal(rejected.status, 400);
+  assert.equal((await readSetting('site_options')).tg_bot_token, 'test-token');
+  const disabled = await saveNotificationSettings({ online_notify: false, tg_bot_token: '' });
+  assert.equal(disabled.status, 200);
+});
+
+test('旧设置保存时保留恢复通知，显式关闭不会被离线开关覆盖', async () => {
+  await seedSettings({ jwt_secret: JWT_SECRET, tg_notify: '5', tg_bot_token: 'test-token', expire_reminder: '0' }, {});
+  assert.equal((await loadSiteSettings(db)).online_notify, 'true');
+  assert.equal((await saveNotificationSettings({ show_price: 'false' })).status, 200);
+  assert.equal((await readSetting('site_options')).online_notify, 'true');
+  assert.equal((await saveNotificationSettings({ online_notify: 'false' })).status, 200);
+  assert.equal((await saveNotificationSettings({ tg_notify: '10' })).status, 200);
+  assert.equal((await loadSiteSettings(db)).online_notify, 'false');
+});
+
+test('导入上线提醒配置会规范布尔值，导出保留显式关闭', async () => {
+  await seedSettings({ jwt_secret: JWT_SECRET, tg_notify: '5', tg_bot_token: 'test-token' }, {});
+  for (const [input, expected] of [[true, 'true'], [false, 'false']]) {
+    const imported = await adminCall({ action: 'import_servers', servers: [], settings: { site: { online_notify: input } } });
+    assert.equal(imported.status, 200);
+    assert.equal(imported.data.settings.site, 1);
+    const exported = await adminCall({ action: 'export_servers' });
+    assert.equal(exported.data.settings.site.online_notify, expected);
+  }
 });
