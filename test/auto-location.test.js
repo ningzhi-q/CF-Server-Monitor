@@ -13,6 +13,22 @@ const cf = { country: 'JP', city: 'Tokyo', latitude: '35.68', longitude: '139.69
 const now = 1794140000000;
 const place = locationFromCf(cf, now);
 
+test('provider failure diagnostics expose no reporter IP, body or error text', async t => {
+  const warnings = [];
+  t.mock.method(console, 'warn', (...args) => warnings.push(args));
+  const coarse = locationFromCf({ country: 'HK', city: 'Hong Kong', latitude: '22.3', longitude: '114.1' }, now);
+  const ip = '192.0.2.7';
+  for (const fetcher of [async () => new Response('private-body', { status: 429 }), async () => { throw Error(`private-error ${ip}`); }]) {
+    assert.deepEqual(await refineAutoLocation(coarse, ip, fetcher), coarse);
+  }
+  assert.deepEqual(warnings, [
+    ['[auto-location] Lookup deferred:', 'HK', 'HTTP 429'],
+    ['[auto-location] Lookup deferred:', 'HK', 'request or response failed']
+  ]);
+  assert.equal(JSON.stringify(warnings).includes(ip), false);
+  assert.equal(JSON.stringify(warnings).includes('private-'), false);
+});
+
 test('city refinement validates provider IP/country/city and preserves coordinate ownership', async () => {
   const coarse = locationFromCf({ country: 'HK', city: 'Hong Kong', latitude: '22.27832', longitude: '114.17469' }, now);
   const ip = '192.0.2.1';

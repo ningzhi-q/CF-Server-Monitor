@@ -78,14 +78,19 @@ async function lookupAutoLocation(input, ip, fetcher = fetch) {
   const unchanged = { location, retry: false };
   const failed = { location, retry: true };
   if (!location || !address || !needsLocationRefinement(location)) return unchanged;
+  const deferred = reason => {
+    // Keep retry diagnostics useful without exposing the reporter's IP or body.
+    console.warn('[auto-location] Lookup deferred:', location.country, reason);
+    return failed;
+  };
   try {
     const response = await fetcher(`https://api.db-ip.com/v2/free/${encodeURIComponent(address)}`, { signal: AbortSignal.timeout(3000) });
-    if (!response.ok) return failed;
+    if (!response.ok) return deferred(`HTTP ${response.status}`);
     const body = await response.text();
-    if (body.length > 4096) return failed;
+    if (body.length > 4096) return deferred('response too large');
     const data = JSON.parse(body);
     if (!data || typeof data !== 'object' || Array.isArray(data) || data.ipAddress !== address || data.countryCode !== location.country ||
-        typeof data.city !== 'string' || !data.city.trim() || data.city.length > 160 || /[\x00-\x1f]/.test(data.city)) return failed;
+        typeof data.city !== 'string' || !data.city.trim() || data.city.length > 160 || /[\x00-\x1f]/.test(data.city)) return deferred('invalid provider response');
     const refined = patch => {
       const result = normalizeAutoLocation({ ...location, ...patch });
       return result ? { location: result, retry: false } : failed;
@@ -105,7 +110,9 @@ async function lookupAutoLocation(input, ip, fetcher = fetch) {
       if (/^(singapore|新加坡)$/i.test(data.city.trim())) return unchanged;
     }
     return refined({ city: data.city.trim(), city_source: 'db-ip' });
-  } catch { return failed; }
+  } catch (error) {
+    return deferred(error?.name === 'TimeoutError' ? 'timeout' : 'request or response failed');
+  }
 }
 
 export async function refineAutoLocation(input, ip, fetcher = fetch) {
