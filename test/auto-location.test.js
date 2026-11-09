@@ -13,6 +13,40 @@ const cf = { country: 'JP', city: 'Tokyo', latitude: '35.68', longitude: '139.69
 const now = 1794140000000;
 const place = locationFromCf(cf, now);
 
+test('provider quota automatically uses a validated independent locality without moving coordinates', async () => {
+  const coarse = locationFromCf({ country: 'HK', city: 'Hong Kong', latitude: '22.3', longitude: '114.1' }, now);
+  const ip = '192.0.2.7';
+  const backup = { ip, country: 'Hong Kong', city: 'Wan Chai', region: 'Wan Chai', lat: 1, lon: 2 };
+  const calls = [];
+  const fetcher = async url => {
+    calls.push(url);
+    return Response.json(url.startsWith('https://api.db-ip.com/') ? { errorCode: 'OVER_QUERY_LIMIT' } : backup);
+  };
+  assert.deepEqual(await refineAutoLocation(coarse, ip, fetcher), { ...coarse, subdivision: 'Wan Chai', subdivision_source: 'ipapi-is' });
+  assert.deepEqual(calls, ['https://api.db-ip.com/v2/free/192.0.2.7', 'https://api.ipapi.is/?q=192.0.2.7']);
+  for (const invalid of [{ ...backup, ip: '192.0.2.8' }, { ...backup, country: 'United States' }, { ...backup, city: 'bad\ncity' }, { ...backup, is_bogon: true }]) {
+    assert.deepEqual(await refineAutoLocation(coarse, ip, async url => Response.json(url.includes('db-ip.com') ? { errorCode: 'OVER_QUERY_LIMIT' } : invalid)), coarse);
+  }
+  let genericFailureCalls = 0;
+  await refineAutoLocation(coarse, ip, async () => { genericFailureCalls++; return new Response('', { status: 503 }); });
+  assert.equal(genericFailureCalls, 1, 'backup runs only for a confirmed provider quota');
+});
+
+test('successful quota fallback is cached daily, including truthful coarse results', async () => {
+  const db = { prepare() { return { bind() { return this; }, async all() { return { results: [{ name: 'auto_location' }] }; }, async run() { return { success: true }; } }; } };
+  const coarse = locationFromCf({ country: 'SG', city: 'Singapore', latitude: '1.29', longitude: '103.85' }, now);
+  const server = { id: 'backup-cache' };
+  const ip = '192.0.2.7';
+  let calls = 0;
+  const options = { ip, fetcher: async url => { calls++; return Response.json(url.includes('db-ip.com') ? { errorCode: 'OVER_QUERY_LIMIT' } : { ip, country: 'Singapore', city: 'Singapore', region: 'Singapore' }); } };
+  assert.deepEqual(await saveAutoLocation(db, server, coarse, now, options), coarse);
+  await saveAutoLocation(db, server, coarse, now + 60001, options);
+  assert.equal(calls, 2);
+  await saveAutoLocation(db, server, coarse, now + 86400001, options);
+  assert.equal(calls, 4);
+  assert.equal(JSON.stringify(server).includes(ip), false);
+});
+
 test('provider failure diagnostics expose no reporter IP, body or error text', async t => {
   const warnings = [];
   t.mock.method(console, 'warn', (...args) => warnings.push(args));
