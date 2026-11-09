@@ -37,3 +37,5 @@
 - `bun run test:agent-config`、`bun run build`：通过。
 - 真实管理端页面：25 项浏览器检查通过，包含开关加载、启停、保存回读、渠道校验、桌面和手机布局；通知请求全部模拟，未发送真实通知。
 - `git -c core.whitespace=cr-at-eol diff --check`：通过。
+
+部署前与「一次性计费／永久到期」一起验证：202 项主测试、6 项历史查询测试、Agent 配置检查和完整构建全部通过。

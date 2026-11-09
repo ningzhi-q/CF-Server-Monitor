@@ -36,10 +36,10 @@
             </select>
           </BatchEditField>
           <BatchEditField :enabled="enabled.expire_date" :label="trans.expirationDate" @toggle="toggleField('expire_date', $event)">
-            <input type="date" v-model="form.expire_date" class="form-input" :disabled="!enabled.expire_date" @click="openDatePicker">
+            <ExpirationDateInput :key="show" v-model="form.expire_date" :trans="trans" :disabled="!enabled.expire_date" />
           </BatchEditField>
           <BatchEditField :enabled="enabled.auto_renewal" :label="trans.autoRenewal" @toggle="toggleField('auto_renewal', $event)">
-            <select v-model="form.auto_renewal" class="form-select" :disabled="!enabled.auto_renewal">
+            <select v-model="form.auto_renewal" class="form-select" :disabled="!enabled.auto_renewal || !canAutoRenew">
               <option :value="true">{{ trans.enabled }}</option>
               <option :value="false">{{ trans.disabled }}</option>
             </select>
@@ -168,10 +168,11 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
+import ExpirationDateInput from './ExpirationDateInput.vue'
 import BatchEditField from './BatchEditField.vue'
 import { currentLang } from '../../../utils/i18n.js'
-import { BILLING_CYCLES, CURRENCY_OPTIONS, getLocalizedOptionField } from '../../../utils/server.js'
+import { BILLING_CYCLES, CURRENCY_OPTIONS, getLocalizedOptionField, supportsAutoRenewal } from '../../../utils/server.js'
 
 const form = defineModel('form', { type: Object, required: true })
 const enabled = defineModel('enabled', { type: Object, required: true })
@@ -209,12 +210,13 @@ const toggleField = (field, checked) => {
   enabled.value[field] = checked
 }
 
-const openDatePicker = (event) => {
-  const input = event?.currentTarget
-  if (typeof input?.showPicker !== 'function') return
-  try {
-    input.showPicker()
-  } catch (_) {}
-}
+// 未勾选的批量字段不会覆盖服务器现有值。
+const canAutoRenew = computed(() => supportsAutoRenewal(
+  enabled.value.billing_cycle ? form.value.billing_cycle : 'month',
+  enabled.value.expire_date ? form.value.expire_date : ''
+))
+watch(canAutoRenew, (allowed) => {
+  if (!allowed) form.value.auto_renewal = false
+})
 
 </script>

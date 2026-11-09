@@ -567,3 +567,41 @@ test('导入上线提醒配置会规范布尔值，导出保留显式关闭', as
     assert.equal(exported.data.settings.site.online_notify, expected);
   }
 });
+
+test('一次性与永久在导入、编辑、导出后保留，自动续费被关闭', async () => {
+  await seedSettings({ is_public: 'true' }, {});
+  const server = {
+    id: '6e74d0b9-1111-4222-8333-444455556666', name: 'One-time permanent',
+    price: '99', billing_cycle: 'one_time', currency: '¥', expire_date: 'never', auto_renewal: '1'
+  };
+  const imported = await adminCall({ action: 'import_servers', servers: [server] });
+  assert.equal(imported.status, 200);
+  assert.equal(imported.data.imported, 1);
+  const read = () => db.prepare('SELECT * FROM servers WHERE id = ?').bind(server.id).first();
+  let row = await read();
+  assert.equal(row.billing_cycle, 'one_time');
+  assert.equal(row.expire_date, 'never');
+  assert.equal(row.auto_renewal, '0');
+  assert.equal(row.price, '99.00');
+
+  for (const [cycle, expiration, expectedFlag] of [
+    ['one_time', '2099-01-01', '0'],
+    ['month', 'never', '0'],
+    ['month', '2099-01-01', '1'],
+    ['one_time', '', '0']
+  ]) {
+    const edited = await adminCall({ ...row, action: 'edit', billing_cycle: cycle, expire_date: expiration, auto_renewal: '1' });
+    assert.equal(edited.status, 200, JSON.stringify(edited.data));
+    row = await read();
+    assert.equal(row.billing_cycle, cycle);
+    assert.equal(row.expire_date, expiration);
+    assert.equal(row.auto_renewal, expectedFlag);
+  }
+  await adminCall({ ...row, action: 'edit', expire_date: 'never' });
+  const exported = await adminCall({ action: 'export_servers' });
+  assert.equal(exported.status, 200);
+  const saved = exported.data.servers.find(item => item.id === server.id);
+  assert.equal(saved.billing_cycle, 'one_time');
+  assert.equal(saved.expire_date, 'never');
+  assert.equal(saved.auto_renewal, '0');
+});

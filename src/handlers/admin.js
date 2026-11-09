@@ -12,7 +12,7 @@ import { getNotificationMessages } from '../services/notificationMessages.js';
 import { HISTORY_PARTITION_PICK_SQL, insertServerWithPartition } from '../database/indexOptimization.js';
 import { isValidTrafficCorrection, normalizeConnectionMode, normalizePingMode, normalizeWssReportInterval, validateAgentConfigInput, validatePingNode, validateNetworkInterfaces } from '../utils/agentConfig.js';
 import { scheduleAgentConfigChanged, scheduleAgentReportModeChanged } from '../utils/agentConfigNotify.js';
-import { detectBillingCycle, detectCurrencySymbol, normalizeBillingCycle, normalizeCurrency, normalizePrice, renewExpireDateIfNeeded } from '../utils/serverBilling.js';
+import { detectBillingCycle, detectCurrencySymbol, normalizeBillingCycle, normalizeCurrency, normalizePrice, renewExpireDateIfNeeded, supportsAutoRenewal } from '../utils/serverBilling.js';
 import { THEME_PREVIEW_AUTH_TTL_SECONDS } from '../utils/config.js';
 
 const PING_NODE_FIELDS = ['custom_ct', 'custom_cu', 'custom_cm', 'custom_bd', 'node_1', 'node_2', 'node_3', 'node_4'];
@@ -58,7 +58,9 @@ function normalizeServerRegion(value) {
 
 function normalizeServerBillingData(data = {}) {
   const billingCycle = normalizeBillingCycle(data.billing_cycle || detectBillingCycle(data.price));
-  const autoRenewal = normalizeBooleanFlag(data.auto_renewal);
+  const autoRenewal = supportsAutoRenewal(billingCycle, data.expire_date)
+    ? normalizeBooleanFlag(data.auto_renewal)
+    : '0';
 
   return {
     price: normalizePrice(data.price),

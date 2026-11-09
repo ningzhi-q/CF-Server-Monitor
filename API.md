@@ -1542,10 +1542,10 @@ Header：`X-Turnstile-Token: <token>`（当 `site_options.turnstile_enabled` 或
   "tags": "production,hk",
   "note": "Primary node",
   "price": "30.00",                   // 字符串，保存时自动转换为两位小数；"0" 或 "-1" 表示免费，空白表示未设置
-  "billing_cycle": "month",            // month | quarter | half_year | year | two_years | three_years | four_years | five_years
-  "auto_renewal": "0",                 // "0" | "1"
+  "billing_cycle": "month",            // month | quarter | half_year | year | two_years | three_years | four_years | five_years | one_time
+  "auto_renewal": "0",                 // "0" | "1"；一次性或永久条目保存为 "0"
   "currency": "¥",                     // ¥ | $ | € | £ | ₽ | ₣ | ₹ | ₫ | ฿
-  "expire_date": "2026-12-31",
+  "expire_date": "2026-12-31",         // YYYY-MM-DD；"never" 表示永久，空字符串表示未设置
   "traffic_limit": "1TB",
   "traffic_calc_type": "total",       // total | ...
   "interface": "eth0,ens3",           // 指定统计网卡，多个用英文逗号分隔；空值自动汇总
@@ -1861,10 +1861,10 @@ UUID 缺失或格式非法时返回 `400 { "error": "invalidServerId", "code": 4
 | `tags`                                        | string             | 逗号分隔标签；编辑时最多保留 12 个，每个最长 32 字符 |
 | `note`                                        | string             | 管理备注；仅管理端 `list` / 导出返回，公共接口会删除 |
 | `price`                                       | string             | 价格金额文本，保存时规范为两位小数；`0` 或 `-1` 表示免费，空白表示未设置 |
-| `billing_cycle`                               | string             | `month` / `quarter` / `half_year` / `year` / `two_years` / `three_years` / `four_years` / `five_years` |
-| `auto_renewal`                                | string `"0"`/`"1"` | 是否启用自动续费                    |
+| `billing_cycle`                               | string             | `month` / `quarter` / `half_year` / `year` / `two_years` / `three_years` / `four_years` / `five_years` / `one_time`（一次性） |
+| `auto_renewal`                                | string `"0"`/`"1"` | 是否启用自动续费；一次性或永久条目保存为 `"0"` |
 | `currency`                                    | string             | 货币符号：`¥` 人民币、`$` 美元、`€` 欧元、`£` 英镑、`₽` 卢布、`₣` 法郎、`₹` 卢比、`₫` 越南盾、`฿` 泰铢 |
-| `expire_date`                                 | string             | 到期日 `YYYY-MM-DD`          |
+| `expire_date`                                 | string             | 到期日 `YYYY-MM-DD`；`"never"` 表示永久，空字符串表示未设置 |
 | `traffic_limit`                               | string             | 流量上限文本                    |
 | `traffic_calc_type`                           | string             | `total` / 其他              |
 | `interface`                                   | string             | 指定网卡统计，多个用英文逗号分隔；空值保持自动汇总 |

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import worker from '../src/index.js';
 import { MetricsBroadcaster } from '../src/durable/MetricsBroadcaster.js';
-import { checkOfflineNodes, checkResourceAlerts } from '../src/services/notification.js';
+import { checkOfflineNodes, checkResourceAlerts, checkExpiringServers } from '../src/services/notification.js';
 import { clearAllCaches } from '../src/utils/cache.js';
 import { DEFAULT_NOTIFICATION_TEMPLATE, SITE_FIELDS, loadSiteSettings, normalizeOnlineNotify } from '../src/utils/settings.js';
 import { getNotificationMessages } from '../src/services/notificationMessages.js';
@@ -67,7 +67,11 @@ function makeDb(settings, servers = [makeServer(1)]) {
         },
         async run() {
           stats.writes++;
-          if (sql.startsWith('DELETE')) {
+          if (sql.startsWith('UPDATE servers SET expire_date')) {
+            const server = db.servers.find(item => item.id === this.args[2]);
+            server.expire_date = this.args[0];
+            server.billing_cycle = this.args[1];
+          } else if (sql.startsWith('DELETE')) {
             assert.equal(this.args[0], 'resource_alert_state');
             db.resourceState = null;
           } else if (sql.includes('"alert_state"')) {
@@ -604,4 +608,26 @@ test('compact resource responses are smaller and keep the legacy protocol availa
   assert.equal(compact.results[0].evaluatedServerIds, undefined);
   assert.deepEqual(compact.results[0].metricDefinitions, [{ metric: 'cpu', mode: 'average', threshold: 80 }]);
   assert.deepEqual(compact.results[0].evaluations[0].metrics, [[30, 50, 10, 50, 30]]);
+});
+
+
+test('expiration checks skip permanent purchases and remind finite one-time purchases even with a stale auto-renew flag', async t => {
+  const messages = setup(t);
+  const servers = [
+    makeServer(1, { name: 'Permanent purchase', billing_cycle: 'one_time', expire_date: 'never', auto_renewal: '1' }),
+    makeServer(2, { name: 'Permanent monthly', billing_cycle: 'month', expire_date: 'never', auto_renewal: '1' }),
+    makeServer(3, { name: 'Finite purchase', billing_cycle: 'one_time', expire_date: '2026-10-24', auto_renewal: '1' }),
+    makeServer(4, { name: 'Recurring monthly', billing_cycle: 'month', expire_date: '2026-10-24', auto_renewal: '1' })
+  ];
+  const db = makeDb(makeSettings({ expire_reminder: '7' }), servers);
+  await checkExpiringServers(db, { now: NOW });
+  assert.equal(servers[0].expire_date, 'never');
+  assert.equal(servers[1].expire_date, 'never');
+  assert.equal(servers[2].expire_date, '2026-10-24');
+  assert.equal(servers[3].expire_date, '2026-11-24');
+  assert.equal(db.stats.writes, 1, 'only the recurring monthly entry is renewed');
+  const text = JSON.stringify(messages);
+  assert.match(text, /Finite purchase/);
+  assert.match(text, /Recurring monthly/);
+  assert.doesNotMatch(text, /Permanent purchase|Permanent monthly/);
 });

@@ -3,6 +3,7 @@ import {
   detectCurrencySymbol,
   getBillingCycleOption,
   isFreePrice,
+  isPermanentExpiration,
   normalizeCurrency,
   normalizePrice
 } from './server.js'
@@ -67,7 +68,8 @@ const BILLING_CYCLE_DAYS = Object.freeze({
   two_years: 730,
   three_years: 1095,
   four_years: 1460,
-  five_years: 1825
+  five_years: 1825,
+  one_time: 0
 })
 
 export const SUPPORTED_FINANCE_CURRENCIES = Object.freeze(Object.keys(FINANCE_CURRENCY_CONFIG))
@@ -249,6 +251,9 @@ export function calculateFinanceSummary(servers, exchangeRates = DEFAULT_EXCHANG
 function calculateRemainingValueCNY(server, priceCNY, now = Date.now()) {
   const expireDate = String(server?.expire_date || server?.expired_at || '').trim()
   if (!expireDate || priceCNY <= 0) return 0
+
+  // 永久和未到期的一次性购买按原价计值，不虚构无限价值或摊销周期。
+  if (isPermanentExpiration(expireDate)) return priceCNY
 
   const expiredAt = new Date(expireDate).getTime()
   if (!Number.isFinite(expiredAt)) return 0

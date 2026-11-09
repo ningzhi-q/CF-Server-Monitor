@@ -288,6 +288,7 @@ export default {
   hostnameLabel: '主机名',
   groupName: '分组名称',
   expirationDate: '到期时间',
+  permanent: '永久',
   trafficLimit: '流量限制',
   autoUpdate: '自动更新',
   autoUpdateRiskTitle: '自动更新风险提示',

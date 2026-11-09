@@ -287,6 +287,7 @@ export default {
   hostnameLabel: 'Hostname',
   groupName: 'Nombre del grupo',
   expirationDate: 'Fecha de vencimiento',
+  permanent: 'Permanente',
   trafficLimit: 'Límite de tráfico',
   autoUpdate: 'Actualización automática',
   autoUpdateRiskTitle: 'Riesgo de la actualización automática',
