@@ -4,7 +4,8 @@ import worker from '../src/index.js';
 import { MetricsBroadcaster } from '../src/durable/MetricsBroadcaster.js';
 import { checkOfflineNodes, checkResourceAlerts, checkExpiringServers } from '../src/services/notification.js';
 import { clearAllCaches } from '../src/utils/cache.js';
-import { DEFAULT_NOTIFICATION_TEMPLATE, SITE_FIELDS, loadSiteSettings } from '../src/utils/settings.js';
+import { DEFAULT_NOTIFICATION_TEMPLATE, SITE_FIELDS, loadSiteSettings, normalizeOnlineNotify } from '../src/utils/settings.js';
+import { getNotificationMessages } from '../src/services/notificationMessages.js';
 import { RESOURCE_ALERT_COMPACT_RESULT_FORMAT } from '../src/utils/config.js';
 
 const NOW = Date.UTC(2026, 9, 22, 12, 2);
@@ -34,7 +35,7 @@ function makeDb(settings, servers = [makeServer(1)]) {
   const db = {
     stats, settings, servers,
     timestamps: new Map(servers.map(server => [server.id, NOW])),
-    offlineState: {}, resourceState: null, failHistory: false, failSettings: false, failLegacy: false,
+    offlineState: {}, resourceState: null, failHistory: false, failSettings: false, failLegacy: false, failOfflineState: false, failOfflineWrite: false,
     prepare(sql) {
       return {
         args: [],
@@ -47,6 +48,7 @@ function makeDb(settings, servers = [makeServer(1)]) {
           }
           if (sql.includes("key = 'alert_state'")) {
             stats.offline++;
+            if (db.failOfflineState) throw new Error('simulated state read failure');
             return { value: JSON.stringify(db.offlineState) };
           }
           assert.equal(this.args[0], 'resource_alert_state');
@@ -73,6 +75,7 @@ function makeDb(settings, servers = [makeServer(1)]) {
             assert.equal(this.args[0], 'resource_alert_state');
             db.resourceState = null;
           } else if (sql.includes('"alert_state"')) {
+            if (db.failOfflineWrite) throw new Error('simulated state write failure');
             db.offlineState = JSON.parse(this.args[0]);
           } else {
             assert.equal(this.args[0], 'resource_alert_state');
@@ -331,6 +334,131 @@ test('offline check does no history/state work when every node is disabled and s
   assert.equal(db.stats.offline, 0);
   assert.equal(db.stats.writes, 0);
   assert.equal(messages.length, 0);
+});
+
+test('online setting preserves legacy recovery and explicit choices', () => {
+  for (const value of [undefined, null, '']) {
+    assert.equal(normalizeOnlineNotify(value, '5'), 'true');
+    assert.equal(normalizeOnlineNotify(value, '0'), 'false');
+  }
+  for (const value of [true, 1, 'true', '1', 'on']) {
+    assert.equal(normalizeOnlineNotify(value, '0'), 'true');
+  }
+  for (const value of [false, 0, 'false', '0', 'off', 'invalid']) {
+    assert.equal(normalizeOnlineNotify(value, '5'), 'false');
+  }
+});
+
+test('loading old settings retains recovery without an extra legacy query', async t => {
+  setup(t);
+  for (const offline of ['0', '5']) {
+    clearAllCaches();
+    const settings = makeSettings({ tg_notify: offline });
+    delete settings.online_notify;
+    const db = makeDb(settings);
+    const loaded = await loadSiteSettings(db);
+    assert.equal(loaded.online_notify, offline === '0' ? 'false' : 'true');
+    assert.equal(db.stats.legacy, 0);
+  }
+});
+
+test('online-only reminders establish a quiet baseline and notify each recovery once', async t => {
+  const messages = setup(t);
+  const settings = makeSettings({ tg_notify: '0', online_notify: 'true' });
+  const db = makeDb(settings, [makeServer(1), makeServer(2, { offline_notify_disabled: '1' })]);
+  await checkOfflineNodes(db, { siteSettings: settings });
+  assert.equal(messages.length, 0, 'existing online nodes must not produce startup reminders');
+  assert.equal(db.stats.writes, 0);
+  assert.equal(db.stats.history, 1, 'muted nodes remain excluded');
+
+  t.mock.timers.tick(5 * MINUTE);
+  await checkOfflineNodes(db, { siteSettings: settings });
+  assert.deepEqual(db.offlineState, {}, 'the threshold boundary is still online');
+  t.mock.timers.tick(1);
+  await checkOfflineNodes(db, { siteSettings: settings });
+  assert.deepEqual(db.offlineState, { 'server-1': true });
+  assert.equal(messages.length, 0, 'offline state is recorded without an offline message');
+  await checkOfflineNodes(db, { siteSettings: settings });
+  assert.equal(db.stats.writes, 1);
+
+  db.timestamps.set('server-1', Date.now());
+  await checkOfflineNodes(db, { siteSettings: settings });
+  assert.equal(messages.length, 1);
+  assert.match(messages[0].text, /节点恢复通知/);
+  assert.match(messages[0].text, /Server 1/);
+  assert.deepEqual(db.offlineState, {});
+  await checkOfflineNodes(db, { siteSettings: settings });
+  assert.equal(messages.length, 1, 'repeated reports do not resend the reminder');
+  t.mock.timers.tick(6 * MINUTE);
+  await checkOfflineNodes(db, { siteSettings: settings });
+  db.timestamps.set('server-1', Date.now());
+  await checkOfflineNodes(db, { siteSettings: settings });
+  assert.equal(messages.length, 2, 'a later outage can produce a new recovery reminder');
+});
+
+test('explicitly disabling online reminders keeps offline alerts and clears recovered state', async t => {
+  const messages = setup(t);
+  const settings = makeSettings({ tg_notify: '2', online_notify: 'false' });
+  const db = makeDb(settings);
+  db.timestamps.delete('server-1');
+  await checkOfflineNodes(db, { siteSettings: settings });
+  assert.equal(messages.length, 1);
+  assert.ok(messages[0].text.includes(getNotificationMessages(settings).events.offline));
+  db.timestamps.set('server-1', NOW);
+  await checkOfflineNodes(db, { siteSettings: settings });
+  assert.deepEqual(db.offlineState, {});
+  assert.equal(messages.length, 1, 'recovery is silent when its switch is off');
+  settings.online_notify = 'true';
+  await checkOfflineNodes(db, { siteSettings: settings });
+  assert.equal(messages.length, 1, 'enabling after a silent recovery does not replay it');
+});
+
+test('both switches, missing channels and D1 failures never send online reminders', async t => {
+  const messages = setup(t);
+  t.mock.method(console, 'error', () => {});
+  for (const overrides of [
+    { tg_notify: '0', online_notify: 'false' },
+    { tg_notify: '0', online_notify: 'true', tg_bot_token: '' },
+    { tg_notify: '0', online_notify: 'true', notification_webhook_enabled: 'true', notification_webhook_url: '' }
+  ]) {
+    clearAllCaches();
+    const settings = makeSettings(overrides);
+    const db = makeDb(settings);
+    db.offlineState = { 'server-1': true };
+    await checkOfflineNodes(db, { siteSettings: settings });
+    assert.equal(db.stats.history, 0);
+    assert.equal(db.stats.writes, 0);
+  }
+  for (const failure of ['failHistory', 'failOfflineState', 'failOfflineWrite']) {
+    clearAllCaches();
+    const settings = makeSettings({ tg_notify: '0', online_notify: 'true' });
+    const db = makeDb(settings);
+    db.offlineState = { 'server-1': true };
+    db[failure] = true;
+    await checkOfflineNodes(db, { siteSettings: settings });
+    assert.deepEqual(db.offlineState, { 'server-1': true });
+    assert.equal(messages.length, 0);
+    db[failure] = false;
+    await checkOfflineNodes(db, { siteSettings: settings });
+    assert.equal(messages.length, 1, 'a successful retry sends the reminder');
+    messages.length = 0;
+  }
+});
+
+test('online-only cron detects recovery after an initial missing report and honors language', async t => {
+  const messages = setup(t);
+  const settings = makeSettings({ tg_notify: '0', online_notify: 'true', resource_alert_rules: [], notification_language: 'es' });
+  const db = makeDb(settings);
+  const { env } = makeEnv(db);
+  db.timestamps.delete('server-1');
+  await worker.scheduled({ cron: '*/1 * * * *' }, env, {});
+  assert.equal(messages.length, 0);
+  assert.deepEqual(db.offlineState, { 'server-1': true });
+  db.timestamps.set('server-1', NOW);
+  await worker.scheduled({ cron: '*/1 * * * *' }, env, {});
+  assert.equal(messages.length, 1);
+  const event = getNotificationMessages(settings).events.recovered;
+  assert.ok(messages[0].text.includes(event));
 });
 
 for (const mode of ['average', 'continuous']) {

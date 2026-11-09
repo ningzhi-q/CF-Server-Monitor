@@ -204,6 +204,8 @@ export default {
   historyPointCount: '{points} puntos',
   notifications: 'Notificaciones',
   offlineAlert: 'Alerta de desconexión',
+  onlineNotify: 'Aviso de conexión',
+  onlineNotifyTip: 'Notifica una vez cuando un nodo desconectado vuelve a conectarse. Funciona sin alertas de desconexión: 5 minutos sin informes indican desconexión. Se excluyen los nodos con notificaciones de desconexión desactivadas.',
   expireReminder: 'Recordatorio de vencimiento',
   disabled: 'Desactivado',
   enable: 'Activar',

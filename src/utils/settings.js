@@ -13,7 +13,7 @@ import {
 
 export const APPEARANCE_FIELDS = ['site_title', 'custom_bg', 'custom_bg_mobile', 'favicon', 'custom_head', 'custom_script', 'csp_static', 'csp_api', 'display_mode', 'preferred_theme', 'default_language', 'theme_options'];
 
-export const SITE_FIELDS = ['auto_discovery', 'is_public', 'show_price', 'show_expire', 'show_tf', 'show_three_net_details', 'wss_report_enabled', 'wss_report_hours', 'frontend_ws_timeout_minutes', 'long_history_points', 'tg_notify', 'tg_bot_token', 'tg_chat_id', 'notification_timezone', 'notification_language', 'expire_notification_time', 'notification_webhook_enabled', 'notification_webhook_url', 'notification_webhook_method', 'notification_webhook_format', 'notification_webhook_headers', 'notification_webhook_body', 'notification_template', 'turnstile_enabled', 'turnstile_login_enabled', 'turnstile_site_key', 'turnstile_secret_key', 'jwt_secret', 'username', 'password', 'cloudflare_account_id', 'cloudflare_token', 'custom_ct', 'custom_cu', 'custom_cm', 'custom_bd', 'node_1', 'node_2', 'node_3', 'node_4', 'custom_ct_name', 'custom_cu_name', 'custom_cm_name', 'custom_bd_name', 'node_1_name', 'node_2_name', 'node_3_name', 'node_4_name', 'expire_reminder', 'resource_alert_rules', 'traffic_alert_threshold', 'theme_url', 'servers_optimized', 'ua'];
+export const SITE_FIELDS = ['auto_discovery', 'is_public', 'show_price', 'show_expire', 'show_tf', 'show_three_net_details', 'wss_report_enabled', 'wss_report_hours', 'frontend_ws_timeout_minutes', 'long_history_points', 'tg_notify', 'online_notify', 'tg_bot_token', 'tg_chat_id', 'notification_timezone', 'notification_language', 'expire_notification_time', 'notification_webhook_enabled', 'notification_webhook_url', 'notification_webhook_method', 'notification_webhook_format', 'notification_webhook_headers', 'notification_webhook_body', 'notification_template', 'turnstile_enabled', 'turnstile_login_enabled', 'turnstile_site_key', 'turnstile_secret_key', 'jwt_secret', 'username', 'password', 'cloudflare_account_id', 'cloudflare_token', 'custom_ct', 'custom_cu', 'custom_cm', 'custom_bd', 'node_1', 'node_2', 'node_3', 'node_4', 'custom_ct_name', 'custom_cu_name', 'custom_cm_name', 'custom_bd_name', 'node_1_name', 'node_2_name', 'node_3_name', 'node_4_name', 'expire_reminder', 'resource_alert_rules', 'traffic_alert_threshold', 'theme_url', 'servers_optimized', 'ua'];
 
 // 导出/导入服务器时一并迁移站点与外观设置。以下字段与当前部署的环境强绑定，
 // 直接覆盖会让目标站点无法登录、探针失联或告警错位，因此既不导出也不导入：
@@ -118,6 +118,7 @@ const defaults = {
   frontend_ws_timeout_minutes: '0',
   long_history_points: String(DEFAULT_LONG_HISTORY_POINTS),
   tg_notify: '0',
+  online_notify: 'false',
   tg_bot_token: '',
   tg_chat_id: '',
   notification_timezone: DEFAULT_NOTIFICATION_TIMEZONE,
@@ -226,6 +227,14 @@ export function normalizeTgNotify(value) {
 
 export function getTgNotifyMinutes(value) {
   return Number(normalizeTgNotify(value));
+}
+
+// 旧站点的恢复通知随离线告警开启。缺失新字段时保留这一行为；显式关闭优先。
+export function normalizeOnlineNotify(value, tgNotify = '0') {
+  if (value === undefined || value === null || value === '') {
+    return getTgNotifyMinutes(tgNotify) > 0 ? 'true' : 'false';
+  }
+  return normalizeBooleanSetting(value);
 }
 
 export function normalizeExpireReminder(value) {
@@ -628,7 +637,7 @@ export function isWssReportEnabled(settings = {}, now = Date.now()) {
 // 这些字段是在旧版「逐 key 存 settings」方案废弃之后才加入的，库里不可能存在对应的旧行，
 // 因此缺失时直接回退默认值即可。把它们排除在 hasMissingFields 之外，避免老部署每次
 // 刷新设置缓存都多做一次 SELECT * FROM settings 的兼容查询。
-const LEGACY_FALLBACK_EXEMPT_FIELDS = new Set(['ua']);
+const LEGACY_FALLBACK_EXEMPT_FIELDS = new Set(['ua', 'online_notify']);
 
 function hasMissingFields(source, fields) {
   if (!source || typeof source !== 'object') return true;
@@ -718,6 +727,7 @@ export async function loadSiteSettings(db, options = {}) {
       result.jwt_secret = await ensurePersistedJwtSecret(db, result, siteOptions);
     }
     result.tg_notify = normalizeTgNotify(result.tg_notify);
+    result.online_notify = normalizeOnlineNotify(siteOptions?.online_notify, result.tg_notify);
     result.expire_reminder = normalizeExpireReminder(result.expire_reminder);
     result.long_history_points = normalizeLongHistoryPoints(result.long_history_points);
     result.resource_alert_rules = normalizeResourceAlertRules(result.resource_alert_rules);
@@ -893,6 +903,7 @@ export async function saveSiteOptions(db, updates) {
     if (field in merged) siteOptions[field] = merged[field];
   }
   siteOptions.tg_notify = normalizeTgNotify(siteOptions.tg_notify);
+  siteOptions.online_notify = normalizeOnlineNotify(siteOptions.online_notify, siteOptions.tg_notify);
   siteOptions.expire_reminder = normalizeExpireReminder(siteOptions.expire_reminder);
   siteOptions.long_history_points = normalizeLongHistoryPoints(siteOptions.long_history_points);
   siteOptions.resource_alert_rules = normalizeResourceAlertRules(siteOptions.resource_alert_rules);
