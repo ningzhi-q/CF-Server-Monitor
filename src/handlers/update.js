@@ -760,7 +760,7 @@ async function handleUpdateCore(request, env, ctx, discovery, authState = null) 
       agentVersion
     );
 
-    const location = await saveAutoLocation(env.DB, serverDetail, locationFromCf(request.cf));
+    const location = await saveAutoLocation(env.DB, serverDetail, locationFromCf(request.cf), Date.now(), { ip: request.headers.get('cf-connecting-ip') });
     const broadcastSamples = toBroadcastSamples(id, samples, regionCode, agentVersion, latestMetrics, location);
     cacheLatestReportUpdate(id, broadcastSamples, Date.now());
     // 加入批量队列，由后台定时任务统一推送到 DO

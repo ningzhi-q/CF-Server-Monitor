@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Miniflare } from 'miniflare';
-import { locationFromCf, normalizeAutoLocation, parseAutoLocation, saveAutoLocation, setTrustedLocationHeaders, AUTO_LOCATION_HEADER } from '../src/utils/autoLocation.js';
+import { locationFromCf, normalizeAutoLocation, normalizeLocationIp, refineAutoLocation, parseAutoLocation, saveAutoLocation, setTrustedLocationHeaders, AUTO_LOCATION_HEADER, AUTO_LOCATION_IP_HEADER } from '../src/utils/autoLocation.js';
 import { toBroadcastSamples, handleUpdate } from '../src/handlers/update.js';
 import { getAllServers, getServerDetail, clearAllCaches } from '../src/utils/cache.js';
 import { getWorkerLatestReportUpdates } from '../src/utils/latestReportCache.js';
@@ -12,6 +12,44 @@ import { MetricsBroadcaster } from '../src/durable/MetricsBroadcaster.js';
 const cf = { country: 'JP', city: 'Tokyo', latitude: '35.68', longitude: '139.69' };
 const now = 1794140000000;
 const place = locationFromCf(cf, now);
+
+test('city refinement validates provider IP/country/city and preserves coordinate ownership', async () => {
+  const coarse = locationFromCf({ country: 'HK', city: 'Hong Kong', latitude: '22.27832', longitude: '114.17469' }, now);
+  const ip = '192.0.2.1';
+  const result = { ipAddress: ip, countryCode: 'HK', city: 'Kwun Tong' };
+  let calls = 0;
+  const fetcher = async (url, options) => { calls++; assert.equal(url, 'https://api.db-ip.com/v2/free/192.0.2.1'); assert.ok(options.signal); return Response.json(result); };
+  assert.deepEqual(await refineAutoLocation(coarse, ip, fetcher), { ...coarse, city: 'Kwun Tong', city_source: 'db-ip' });
+  assert.deepEqual(await refineAutoLocation(place, ip, fetcher), place);
+  assert.equal(calls, 1, 'specific Cloudflare city is never queried or overwritten');
+  assert.deepEqual(await refineAutoLocation(coarse, ip, async () => Response.json({ ...result, city: 'Hong Kong', stateProv: 'Kowloon' })), { ...coarse, subdivision: 'Kowloon', subdivision_source: 'db-ip' });
+  for (const bad of [{ ...result, ipAddress: '192.0.2.2' }, { ...result, countryCode: 'US' }, { ...result, city: 'Hong Kong' }, { ...result, city: '' }, { ...result, city: ['Kwun Tong'] }, { ...result, city: 'a'.repeat(161) }, { ...result, city: 'a\ncity' }, null]) {
+    assert.deepEqual(await refineAutoLocation(coarse, ip, async () => Response.json(bad)), coarse);
+  }
+  for (const failed of [async () => new Response('', { status: 429 }), async () => { throw Error('timeout'); }, async () => new Response('{bad')]) {
+    assert.deepEqual(await refineAutoLocation(coarse, ip, failed), coarse);
+  }
+  for (const badIp of ['', '256.1.1.1', '../settings', '192.0.2.1?x=1', '[::1]', '::::']) assert.equal(normalizeLocationIp(badIp), null);
+  assert.equal(normalizeLocationIp('2001:db8::1'), '2001:db8::1');
+});
+
+test('coarse city lookups are cached per database, refreshed daily and on IP change', async () => {
+  const db = { prepare() { return { bind() { return this; }, async all() { return { results: [{ name: 'auto_location' }] }; }, async run() { return { success: true }; } }; } };
+  const coarse = locationFromCf({ country: 'HK', city: 'Hong Kong', latitude: '22.27832', longitude: '114.17469' }, now);
+  const server = { id: 'refinement' };
+  let calls = 0;
+  const options = { ip: '192.0.2.1', fetcher: async url => { calls++; return Response.json({ ipAddress: decodeURIComponent(url.split('/').at(-1)), countryCode: 'HK', city: 'Kwun Tong' }); } };
+  const results = await Promise.all([saveAutoLocation(db, server, coarse, now, options), saveAutoLocation(db, server, coarse, now + 1, options)]);
+  assert.equal(calls, 1);
+  assert.ok(results.every(value => value.city === 'Kwun Tong'));
+  assert.equal(JSON.stringify(server).includes('192.0.2.1'), false, 'IP never persists in server DTO');
+  await saveAutoLocation(db, server, coarse, now + 2, options);
+  assert.equal(calls, 1);
+  await saveAutoLocation(db, server, coarse, now + 24 * 60 * 60 * 1000 + 1, options);
+  assert.equal(calls, 2);
+  await saveAutoLocation(db, server, coarse, now + 24 * 60 * 60 * 1000 + 2, { ...options, ip: '192.0.2.2' });
+  assert.equal(calls, 3);
+});
 
 test('Cloudflare data is validated without guessing absent coordinates or cities', () => {
   assert.equal(place.city, 'Tokyo');
@@ -24,9 +62,10 @@ test('Cloudflare data is validated without guessing absent coordinates or cities
 });
 
 test('the public Worker replaces forged headers and strips all body locations from broadcast samples', () => {
-  const headers = new Headers({ [AUTO_LOCATION_HEADER]: JSON.stringify({ ...place, country: 'US' }), 'cf-ipcountry': 'US' });
+  const headers = new Headers({ [AUTO_LOCATION_HEADER]: JSON.stringify({ ...place, country: 'US' }), [AUTO_LOCATION_IP_HEADER]: '192.0.2.99', 'cf-connecting-ip': '192.0.2.1', 'cf-ipcountry': 'US' });
   setTrustedLocationHeaders(headers, cf);
   assert.equal(parseAutoLocation(headers.get(AUTO_LOCATION_HEADER)).country, 'JP');
+  assert.equal(headers.get(AUTO_LOCATION_IP_HEADER), '192.0.2.1');
   const samples = [0, 1].map(i => ({ ts: now + i, metrics: { cpu: 10, location: { ...place, country: 'US' }, auto_location: 'fake' } }));
   const broadcast = toBroadcastSamples('node', samples, 'JP', '', null, place);
   assert.equal(broadcast[0].payload.location, undefined);
@@ -93,35 +132,55 @@ test('HTTP reporting persists trusted metadata only after authentication and usa
   await clearAllCaches();
   await initDatabase(DB);
   await DB.prepare("INSERT INTO servers (id, name, history_partition_id) VALUES ('http-geo-node','Test',1)").run();
+  let lookups = 0;
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    lookups++;
+    assert.equal(url, 'https://api.db-ip.com/v2/free/192.0.2.1');
+    assert.ok(options.signal);
+    return Response.json({ ipAddress: '192.0.2.1', countryCode: 'HK', city: 'Kwun Tong' });
+  });
+  const coarseCf = { country: 'HK', city: 'Hong Kong', latitude: '22.27832', longitude: '114.17469' };
   const tasks = [];
   const request = (secret, metrics) => {
-    const req = new Request('https://example.com/update', { method: 'POST', body: JSON.stringify({ id: 'http-geo-node', secret, metrics }) });
-    Object.defineProperty(req, 'cf', { value: cf });
+    const req = new Request('https://example.com/update', { method: 'POST', headers: { 'cf-connecting-ip': '192.0.2.1' }, body: JSON.stringify({ id: 'http-geo-node', secret, metrics }) });
+    Object.defineProperty(req, 'cf', { value: coarseCf });
     return req;
   };
   const env = { DB, API_SECRET: 'test-secret' }, ctx = { waitUntil(p) { tasks.push(p); } };
   assert.equal((await handleUpdate(request('bad', { cpu: 10 }), env, ctx)).status, 401);
   assert.equal((await handleUpdate(request('test-secret', null), env, ctx)).status, 400);
   assert.equal((await DB.prepare("SELECT auto_location FROM servers").first()).auto_location, null);
+  assert.equal(lookups, 0, 'unauthenticated or invalid reports never query a provider');
   assert.equal((await handleUpdate(request('test-secret', { cpu: 10, location: { ...place, country: 'US' } }), env, ctx)).status, 200);
   await Promise.allSettled(tasks);
-  assert.equal(parseAutoLocation((await DB.prepare('SELECT auto_location FROM servers').first()).auto_location).city, 'Tokyo');
-  assert.equal(getWorkerLatestReportUpdates(['http-geo-node'])[0].samples.at(-1).payload.location.country, 'JP');
+  assert.equal(parseAutoLocation((await DB.prepare('SELECT auto_location FROM servers').first()).auto_location).city, 'Kwun Tong');
+  assert.equal(lookups, 1);
+  assert.equal(getWorkerLatestReportUpdates(['http-geo-node'])[0].samples.at(-1).payload.location.country, 'HK');
   const sys = { is_public: 'true' };
   const detail = await (await handleServerAPI(new Request('https://example.com/api/server?id=http-geo-node'), env, sys)).json();
   const list = await (await handleServersAPI(new Request('https://example.com/api/servers'), env, sys)).json();
-  assert.equal(detail.location.city, 'Tokyo');
+  assert.equal(detail.location.city, 'Kwun Tong');
+  assert.equal(detail.location.city_source, 'db-ip');
+  assert.equal(detail.location.latitude, Number(coarseCf.latitude));
+  assert.equal(JSON.stringify(detail).includes('192.0.2.1'), false);
   assert.deepEqual(list.servers[0].location, detail.location);
   assert.equal('auto_location' in detail, false);
   assert.equal('auto_location' in list.servers[0], false);
 });
 
-test('WebSocket reporting uses the authenticated attachment rather than client-supplied location', async () => {
+test('WebSocket reporting uses the authenticated attachment rather than client-supplied location', async t => {
+  let lookups = 0;
+  t.mock.method(globalThis, 'fetch', async url => {
+    lookups++;
+    assert.equal(url, 'https://api.db-ip.com/v2/free/192.0.2.2');
+    return Response.json({ ipAddress: '192.0.2.2', countryCode: 'HK', city: 'Hong Kong', stateProv: 'Kowloon' });
+  });
+  const coarse = locationFromCf({ country: 'HK', city: 'Hong Kong', latitude: '22.27832', longitude: '114.17469' }, now);
   globalThis.WebSocketRequestResponsePair = class { constructor() {} };
   const env = { DB: { prepare() { return { bind() { return this; }, async all() { return { results: [{ name: 'auto_location' }] }; }, async run() { return { success: true }; } }; } } };
   const doInstance = new MetricsBroadcaster({ setWebSocketAutoResponse() {}, getWebSockets() { return []; }, storage: { async get() { return null; }, async put() {} } }, env);
   const socket = { send() {}, serializeAttachment() {} };
-  doInstance._resolveAgentContext = async () => ({ serverId: 'ws-node', serverDetail: { id: 'ws-node' }, attachment: { autoLocation: place }, regionCode: 'JP', agentVersion: '' });
+  doInstance._resolveAgentContext = async () => ({ serverId: 'ws-node', serverDetail: { id: 'ws-node' }, attachment: { autoLocation: coarse, locationIp: '192.0.2.2' }, regionCode: 'HK', agentVersion: '' });
   doInstance._getAgentRealtimeState = () => ({ realtimeActive: false });
   let payload;
   doInstance._cacheLatestReportUpdates = updates => { payload = updates[0].samples.at(-1).payload; };
@@ -130,5 +189,11 @@ test('WebSocket reporting uses the authenticated attachment rather than client-s
   doInstance._getAgentNextWssReportAfterMs = () => 2000;
   // Auth and payload handling are kept intact; only unrelated persistence/broadcast transport is replaced.
   await doInstance._handleAgentReportMessage(socket, JSON.stringify({ id: 'ws-node', metrics: { cpu: 10, location: { ...place, country: 'US' } } }), {});
-  assert.equal(payload.location.country, 'JP');
+  assert.equal(lookups, 1);
+  assert.equal(payload.location.country, 'HK');
+  assert.equal(payload.location.city, 'Hong Kong');
+  assert.equal(payload.location.subdivision, 'Kowloon');
+  assert.equal(payload.location.subdivision_source, 'db-ip');
+  assert.equal(payload.location.latitude, coarse.latitude);
+  assert.equal(JSON.stringify(payload).includes('192.0.2.2'), false);
 });
