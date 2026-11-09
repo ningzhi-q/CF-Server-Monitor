@@ -51,6 +51,58 @@ test('coarse city lookups are cached per database, refreshed daily and on IP cha
   assert.equal(calls, 3);
 });
 
+test('Singapore area refinement preserves the city-state and original coordinates', async () => {
+  const coarse = locationFromCf({ country: 'SG', city: 'Singapore', latitude: '1.28967', longitude: '103.85007' }, now);
+  const ip = '192.0.2.3';
+  const answer = { ipAddress: ip, countryCode: 'SG', city: 'Singapore (Tampines)' };
+  assert.deepEqual(await refineAutoLocation(coarse, ip, async () => Response.json(answer)), {
+    ...coarse, subdivision: 'Tampines', subdivision_source: 'db-ip'
+  });
+  assert.deepEqual(await refineAutoLocation(coarse, ip, async () => Response.json({ ...answer, city: 'Singapore' })), coarse);
+  const specific = { ...coarse, city: 'Kampong Loyang' };
+  assert.deepEqual(await refineAutoLocation(specific, ip, async () => { throw Error('must not query a specific city'); }), specific);
+  for (const stateProv of ['a'.repeat(161), 'bad\narea']) {
+    const hk = { ...coarse, country: 'HK', city: 'Hong Kong' };
+    assert.deepEqual(await refineAutoLocation(hk, ip, async () => Response.json({ ipAddress: ip, countryCode: 'HK', city: 'Hong Kong', stateProv })), hk);
+  }
+});
+
+test('provider failure retries after a minute, retains same-IP detail, and never carries it across IP changes', async () => {
+  const db = { prepare() { return { bind() { return this; }, async all() { return { results: [{ name: 'auto_location' }] }; }, async run() { return { success: true }; } }; } };
+  const coarse = locationFromCf({ country: 'SG', city: 'Singapore', latitude: '1.28967', longitude: '103.85007' }, now);
+  const server = { id: 'retry-area' };
+  let calls = 0, fail = true;
+  const options = { ip: '192.0.2.3', fetcher: async url => {
+    calls++;
+    if (fail) throw Error('timeout');
+    return Response.json({ ipAddress: url.split('/').at(-1), countryCode: 'SG', city: 'Singapore (Tampines)' });
+  } };
+  assert.equal((await saveAutoLocation(db, server, coarse, now, options)).subdivision, undefined);
+  await saveAutoLocation(db, server, coarse, now + 59999, options);
+  assert.equal(calls, 1);
+  fail = false;
+  assert.equal((await saveAutoLocation(db, server, coarse, now + 60000, options)).subdivision, 'Tampines');
+  assert.equal(calls, 2);
+  const refreshedAt = now + 60000 + 24 * 60 * 60 * 1000;
+  fail = true;
+  assert.equal((await saveAutoLocation(db, server, coarse, refreshedAt, options)).subdivision, 'Tampines');
+  assert.equal(calls, 3);
+  assert.equal((await saveAutoLocation(db, server, coarse, refreshedAt + 1, { ...options, ip: '192.0.2.4' })).subdivision, undefined);
+  assert.equal(calls, 4);
+  assert.equal(JSON.stringify(server).includes('192.0.2.'), false);
+});
+
+test('a valid provider answer without a finer locality remains cached for a day', async () => {
+  const db = { prepare() { return { bind() { return this; }, async all() { return { results: [{ name: 'auto_location' }] }; }, async run() { return { success: true }; } }; } };
+  const coarse = locationFromCf({ country: 'SG', city: 'Singapore', latitude: '1.28967', longitude: '103.85007' }, now);
+  let calls = 0;
+  const options = { ip: '192.0.2.3', fetcher: async () => { calls++; return Response.json({ ipAddress: '192.0.2.3', countryCode: 'SG', city: 'Singapore' }); } };
+  const server = { id: 'no-finer-area' };
+  await saveAutoLocation(db, server, coarse, now, options);
+  await saveAutoLocation(db, server, coarse, now + 60001, options);
+  assert.equal(calls, 1);
+});
+
 test('Cloudflare data is validated without guessing absent coordinates or cities', () => {
   assert.equal(place.city, 'Tokyo');
   assert.equal(locationFromCf({ ...cf, city: undefined }, now).city, null);
@@ -196,4 +248,26 @@ test('WebSocket reporting uses the authenticated attachment rather than client-s
   assert.equal(payload.location.subdivision_source, 'db-ip');
   assert.equal(payload.location.latitude, coarse.latitude);
   assert.equal(JSON.stringify(payload).includes('192.0.2.2'), false);
+});
+
+test('legacy coarse WebSocket attachments reconnect after their report is acknowledged without looping new connections', async () => {
+  globalThis.WebSocketRequestResponsePair = class { constructor() {} };
+  const env = { DB: { prepare() { return { bind() { return this; }, async all() { return { results: [{ name: 'auto_location' }] }; }, async run() { return { success: true }; } }; } } };
+  const instance = new MetricsBroadcaster({ setWebSocketAutoResponse() {}, getWebSockets() { return []; }, storage: { async get() { return null; }, async put() {} } }, env);
+  instance._getAgentRealtimeState = () => ({ realtimeActive: false });
+  instance._cacheLatestReportUpdates = () => {};
+  instance._persistAgentHistoryIfDue = async () => ({ persisted: true });
+  instance._buildAgentConfigAck = async () => null;
+  instance._getAgentNextWssReportAfterMs = () => 2000;
+  for (const [country, city, ipField, shouldReconnect] of [
+    ['HK', 'Hong Kong', {}, true], ['SG', 'Singapore', {}, true],
+    ['HK', 'Hong Kong', { locationIp: null }, false], ['JP', 'Tokyo', {}, false]
+  ]) {
+    const events = [];
+    const attachment = { autoLocation: locationFromCf({ country, city, latitude: '22.3', longitude: '114.1' }, now), ...ipField };
+    instance._resolveAgentContext = async () => ({ serverId: 'legacy-node', serverDetail: { id: 'legacy-node' }, attachment, regionCode: country, agentVersion: '' });
+    const socket = { send(message) { events.push(JSON.parse(message).type); }, serializeAttachment() {}, close(code) { events.push(code); } };
+    await instance._handleAgentReportMessage(socket, JSON.stringify({ id: 'legacy-node', metrics: { cpu: 10 } }), {});
+    assert.deepEqual(events, shouldReconnect ? ['ack', 1012] : ['ack']);
+  }
 });

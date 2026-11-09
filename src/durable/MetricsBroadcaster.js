@@ -12,7 +12,7 @@
 //   通过 setWebSocketAutoResponse 自动响应 ping，无需唤醒 DO。
 // - Agent 上报连接使用标准 WebSocket API，避免高频指标消息计为 hibernation wakeup。
 
-import { AUTO_LOCATION_HEADER, AUTO_LOCATION_IP_HEADER, normalizeLocationIp, parseAutoLocation, saveAutoLocation } from '../utils/autoLocation.js';
+import { AUTO_LOCATION_HEADER, AUTO_LOCATION_IP_HEADER, needsLocationRefinement, normalizeLocationIp, parseAutoLocation, saveAutoLocation } from '../utils/autoLocation.js';
 import { saveMetricsHistory } from '../database/schema.js';
 import { evaluateTrafficAlert } from '../services/notification.js';
 import { ensureServerOptimization } from '../database/indexOptimization.js';
@@ -1447,6 +1447,11 @@ export class MetricsBroadcaster {
       nextWssReportAfterMs,
       ...(configAck || {})
     });
+    // Migrate pre-IP hibernating connections after processing their valid report.
+    // New attachments contain locationIp (possibly null), so they never loop here.
+    if (!Object.hasOwn(context.attachment, 'locationIp') && needsLocationRefinement(context.attachment.autoLocation)) {
+      ws.close(1012, 'Refresh location metadata');
+    }
   }
 
   async _handleAgentReportWebSocket(request, url) {
