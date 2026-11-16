@@ -393,7 +393,7 @@ export default {
   installVersionPlaceholder: '預設最新版',
   ghProxy: '第三方 GitHub 代理',
   ghProxyTip: '第三方代理可能檢視或竄改下載的安裝檔案，存在安全風險。',
-  installVersionTip: '透過 https://github.com/huilang-me/cfsm-agent/releases 取得版本號',
+  installVersionTip: '透過 https://github.com/ningzhi-q/cfsm-agent/releases 取得版本號',
   dockerVersionTip: 'Docker 映像標籤（tag），預設 latest',
   ghProxyPlaceholder: '海外直連即可',
   pingNodes: 'Ping 節點',

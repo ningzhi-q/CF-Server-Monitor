@@ -393,7 +393,7 @@ export default {
   installVersionPlaceholder: 'Default versi terbaru',
   ghProxy: 'Proxy GitHub Pihak Ketiga',
   ghProxyTip: 'Proxy pihak ketiga dapat melihat atau memodifikasi file instalasi yang diunduh dan berpotensi menimbulkan risiko keamanan.',
-  installVersionTip: 'Dapatkan versi terbaru dari https://github.com/huilang-me/cfsm-agent/releases',
+  installVersionTip: 'Dapatkan versi terbaru dari https://github.com/ningzhi-q/cfsm-agent/releases',
   dockerVersionTip: 'Tag image Docker, default ke latest',
   ghProxyPlaceholder: 'Langsung',
   pingNodes: 'Node Ping',

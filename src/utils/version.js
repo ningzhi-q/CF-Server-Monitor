@@ -1,5 +1,5 @@
 const REMOTE_VERSION_URL = 'https://raw.githubusercontent.com/huilang-me/CF-Server-Monitor/refs/heads/main/version.json';
-const AGENT_RELEASE_URL = 'https://api.github.com/repos/huilang-me/cfsm-agent/releases/latest';
+const AGENT_RELEASE_URL = 'https://api.github.com/repos/ningzhi-q/cfsm-agent/releases/latest';
 const REMOTE_VERSION_TTL = 10 * 60 * 1000;
 const REMOTE_VERSION_FAILURE_TTL = 30 * 1000;
 const REMOTE_VERSION_FETCH_TIMEOUT_MS = 2000;

@@ -44,7 +44,8 @@ export const HISTORY_ALL_QUERY_COLUMNS = Object.freeze([
   'swap_used',
   'load_avg',
   'region',
-  'kernel_version'
+  'kernel_version',
+  'probe_results'
 ]);
 
 const HISTORY_AGGREGATION_MAX_FIELDS = Object.freeze([
@@ -138,7 +139,8 @@ export const HISTORY_TABLE_COLUMNS = Object.freeze([
   ['ip_v6', "TEXT DEFAULT '0'"],
   ['boot_time', "TEXT DEFAULT ''"],
   ['net_rx_monthly', 'REAL DEFAULT 0'],
-  ['net_tx_monthly', 'REAL DEFAULT 0']
+  ['net_tx_monthly', 'REAL DEFAULT 0'],
+  ['probe_results', "TEXT DEFAULT '{}'"]
 ]);
 
 export const HISTORY_INSERT_COLUMNS = Object.freeze(

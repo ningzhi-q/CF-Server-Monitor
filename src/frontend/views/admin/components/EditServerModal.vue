@@ -169,6 +169,7 @@
         </div>
       </div>
 
+      <ProbeSelectionEditor v-if="settings.probe_catalog?.enabled" v-model="editForm.probe_selection" :catalog="settings.probe_catalog" :ipv4="editForm.ip_v4" :ipv6="editForm.ip_v6" />
       <div class="form-row">
         <div class="form-group flex-1">
           <label class="form-label">
@@ -271,6 +272,7 @@
 </template>
 
 <script setup>
+import ProbeSelectionEditor from './ProbeSelectionEditor.vue'
 import { computed, watch } from 'vue'
 import { normalizeTgNotifySetting } from '../../../utils/notifications.js'
 import ExpirationDateInput from './ExpirationDateInput.vue'
