@@ -25,7 +25,7 @@ function addTarget(group) {
   <div class="probe-catalog">
     <label class="probe-catalog__switch"><input type="checkbox" :checked="catalog.enabled" @change="enable"> 启用自定义 Ping 节点与分组</label>
     <p class="probe-catalog__hint">可自由增删节点。IPv4 服务器自动选择 IPv4 分组，IPv6 服务器选择 IPv6 分组，双栈同时选择两组；通用分组适用于任一网络。</p>
-    <p class="probe-catalog__hint">新增节点需要支持自定义探测的 Agent。旧版 Agent 继续使用下方原有配置。</p>
+    <p class="probe-catalog__hint">新增节点需要支持自定义探测的 Agent；旧版 Agent 保留已有探测配置。</p>
     <template v-if="catalog.enabled">
       <section v-for="(group, groupIndex) in catalog.groups" :key="group.id" class="probe-catalog__group">
         <div class="probe-catalog__group-head">
