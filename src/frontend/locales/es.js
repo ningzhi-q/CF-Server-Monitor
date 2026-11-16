@@ -293,7 +293,7 @@ export default {
   trafficLimit: 'Límite de tráfico',
   autoUpdate: 'Actualización automática',
   autoUpdateRiskTitle: 'Riesgo de la actualización automática',
-  autoUpdateRiskDesc: 'Asegúrate de que el servidor donde está instalado el agente sea seguro. Después de activar la actualización automática, copia el comando de instalación en el servidor y ejecútalo.',
+  autoUpdateRiskDesc: 'Activado por defecto. Busca versiones estables cada 6 horas. El ajuste se aplica desde v1.2.0; actualiza primero los agentes antiguos.',
   autoUpdateRiskConfirm: 'Activar actualización automática',
   autoUpdateRiskCancel: 'Cancelar',
   hideFromPublic: 'Ocultar al público',

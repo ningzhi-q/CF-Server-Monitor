@@ -293,7 +293,7 @@ export default {
   trafficLimit: 'トラフィック上限',
   autoUpdate: '自動更新',
   autoUpdateRiskTitle: '自動更新のリスク',
-  autoUpdateRiskDesc: 'エージェントを導入したサーバーの安全性を確保してください。自動更新を有効にした後、インストールコマンドをコピーしてサーバー上で実行してください。',
+  autoUpdateRiskDesc: '初期設定は有効です。6 時間ごとに正式版を確認します。v1.2.0 以降は管理画面の変更が反映されます。旧版は先に更新してください。',
   autoUpdateRiskConfirm: '自動更新を有効化',
   autoUpdateRiskCancel: 'キャンセル',
   hideFromPublic: '公開ページで非表示',

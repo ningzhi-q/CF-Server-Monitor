@@ -293,7 +293,7 @@ export default {
   trafficLimit: 'Traffic Limit',
   autoUpdate: 'Auto Update',
   autoUpdateRiskTitle: 'Auto-update Risk',
-  autoUpdateRiskDesc: 'Please ensure the security of the server where the agent is installed. After enabling auto-update, please copy the install command to the server and execute it.',
+  autoUpdateRiskDesc: 'Enabled by default. Checks stable releases every 6 hours. Dashboard changes apply from v1.2.0; older agents need upgrading first.',
   autoUpdateRiskConfirm: 'Enable Auto-update',
   autoUpdateRiskCancel: 'Cancel',
   hideFromPublic: 'Hide from Public',

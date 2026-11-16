@@ -1153,14 +1153,14 @@ const networkInterface = ref('')
 const resetDay = ref(1)
 const rxCorrection = ref('')
 const txCorrection = ref('')
-const autoUpdate = ref(false)
+const autoUpdate = ref(true)
 const copiedCmd = ref(false)
 const showAutoDiscoveryModal = ref(false)
 const autoDiscoveryTargetOs = ref('linux')
 const autoDiscoveryInstallMode = ref('current-user')
 const autoDiscoveryName = ref('')
 const autoDiscoveryVersion = ref('')
-const autoDiscoveryAutoUpdate = ref(false)
+const autoDiscoveryAutoUpdate = ref(true)
 const autoDiscoveryGhProxy = ref('')
 const autoDiscoveryCopied = ref(false)
 
@@ -1966,7 +1966,7 @@ const getCustomInstallCommand = () => {
 
 // 自动发现模式下安装命令不带 -id：Agent 首次上报时由服务端自动创建服务器。
 // name 留空时服务端回退到请求来源 IP；安装用户、代理、版本、名称与自动更新仅影响本次生成的命令。
-const buildAutoDiscoveryCommand = ({ targetOs: os = 'linux', installMode: mode = 'current-user', ghProxy = '', name = '', version = '', autoUpdate = false } = {}) => {
+const buildAutoDiscoveryCommand = ({ targetOs: os = 'linux', installMode: mode = 'current-user', ghProxy = '', name = '', version = '', autoUpdate = true } = {}) => {
   const HOST = selectedApiBase.value
   const proxy = String(ghProxy || '').trim()
   const agentVersion = String(version || '').trim()

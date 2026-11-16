@@ -293,7 +293,7 @@ export default {
   trafficLimit: 'Batas Trafik',
   autoUpdate: 'Pembaruan Otomatis',
   autoUpdateRiskTitle: 'Risiko Pembaruan Otomatis',
-  autoUpdateRiskDesc: 'Pastikan keamanan server tempat agent dipasang. Setelah mengaktifkan pembaruan otomatis, salin perintah instalasi ke server lalu jalankan.',
+  autoUpdateRiskDesc: 'Aktif secara default. Memeriksa rilis stabil setiap 6 jam. Pengaturan berlaku mulai v1.2.0; tingkatkan agent lama terlebih dahulu.',
   autoUpdateRiskConfirm: 'Aktifkan Pembaruan Otomatis',
   autoUpdateRiskCancel: 'Batal',
   hideFromPublic: 'Sembunyikan dari Publik',

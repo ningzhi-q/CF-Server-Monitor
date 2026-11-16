@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Miniflare } from 'miniflare';
 import { normalizeProbeCatalog, normalizeProbeSelection, selectProbeTargets, publicProbeCatalog, normalizeProbeResults } from '../src/shared/probes.js';
-import { buildAgentConfig, serializeAgentConfig } from '../src/utils/agentConfig.js';
+import { buildAgentConfig, serializeAgentConfig, describeAgentConfig } from '../src/utils/agentConfig.js';
 import { ensureDynamicProbeSchema } from '../src/database/dynamicProbes.js';
 import { getDashboardLatencyHistory } from '../src/database/schema.js';
 import { createHistoryTableSql } from '../src/utils/historyFields.js';
@@ -84,4 +84,15 @@ test('additive D1 migration is idempotent and real dynamic history includes more
     assert.equal('p_stale' in point, false);
     assert.equal(Object.keys(point).filter(k => k.startsWith('p_')).length, 19);
   } finally { await mf.dispose(); }
+});
+
+
+test('auto update defaults on, explicit off is sent and changes config MD5', async () => {
+ const on = await describeAgentConfig({});
+ const off = await describeAgentConfig({auto_update: '0'});
+ assert.match(on.serialized, /&update=1(?:&|$)/);
+ assert.match(off.serialized, /&update=0(?:&|$)/);
+ assert.notEqual(on.md5, off.md5);
+ const legacy = await describeAgentConfig({}, null, 7);
+ assert.doesNotMatch(legacy.serialized, /&update=/);
 });

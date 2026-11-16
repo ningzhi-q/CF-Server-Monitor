@@ -340,6 +340,7 @@ export function buildAgentConfig(server, settings = null, schemaVersion = AGENT_
   }
 
   if (version >= 8) {
+    config.update = server?.auto_update === '0' || server?.auto_update === 0 || server?.auto_update === false ? '0' : '1';
     config.probe_catalog = normalizeProbeCatalog(settings?.probe_catalog);
     config.probe_selection = normalizeProbeSelection(server?.probe_selection);
     if (config.probe_catalog.enabled) {
@@ -373,6 +374,9 @@ export function serializeAgentConfig(config) {
   }
   if (Object.prototype.hasOwnProperty.call(config, 'ping_mode')) {
     serialized += `&ping_mode=${config.ping_mode}`;
+  }
+  if (Object.prototype.hasOwnProperty.call(config, 'update')) {
+    serialized += `&update=${config.update}`;
   }
   if (Object.prototype.hasOwnProperty.call(config, 'probe_catalog')) {
     serialized += `&probe_catalog=${encodeURIComponent(JSON.stringify(config.probe_catalog))}`;
