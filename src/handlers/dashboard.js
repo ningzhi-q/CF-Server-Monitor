@@ -1,3 +1,4 @@
+import { publicProbeCatalog } from '../shared/probes.js';
 import { checkAuth, simpleAuthResponse } from '../middleware/auth.js';
 import { getDashboardLatencyHistory, getLatestMetrics, getLatestMetricsForAllServers } from '../database/schema.js';
 import { parseAutoLocation, normalizeAutoLocation } from '../utils/autoLocation.js';
@@ -292,6 +293,7 @@ export async function handleServersAPI(request, env, sys) {
       node_2_name: sys.node_2_name || 'Node 2',
       node_3_name: sys.node_3_name || 'Node 3',
       node_4_name: sys.node_4_name || 'Node 4',
+          probe_catalog: publicProbeCatalog(sys.probe_catalog),
       display_mode: sys.display_mode || 'bar',
       latency_window: {
         points: DASHBOARD_LATENCY_WINDOW_POINTS,

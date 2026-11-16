@@ -1,3 +1,5 @@
+import { ensureDynamicProbeSchema } from './dynamicProbes.js';
+import { normalizeProbeResults } from '../shared/probes.js';
 import { getAllServers, getLatestMetricsCache, setLatestMetricsCache, getMetricsHistoryCache, setMetricsHistoryCache, getCacheDuration, clearAllCaches } from '../utils/cache.js';
 import { saveSiteOptions, debug, normalizeLongHistoryPoints, DEFAULT_LONG_HISTORY_POINTS } from '../utils/settings.js';
 import { attachDiskMetricsObject, flattenDiskMetrics, isDisabledProbeMetric, normalizeProbeMetricRow } from '../utils/metrics.js';
@@ -25,7 +27,7 @@ const LOSS_AGG_COLUMNS = new Set(['loss_ct', 'loss_cu', 'loss_cm', 'loss_bd', 'l
 const DEFAULT_HISTORY_MAX_POINTS = 160;
 const LATENCY_NODE_FIELDS = ['ct', 'cu', 'cm', 'bd', 'node_1', 'node_2', 'node_3', 'node_4'];
 const DASHBOARD_LATENCY_COLUMNS = LATENCY_NODE_FIELDS
-  .flatMap(field => [`ping_${field}`, `loss_${field}`]);
+  .flatMap(field => [`ping_${field}`, `loss_${field}`]).concat('probe_results');
 const dashboardLatencyHistoryCache = new Map();
 
 function pruneDashboardLatencyHistoryCache(now = Date.now()) {
@@ -104,6 +106,7 @@ export async function initDatabase(db) {
           node_2 TEXT DEFAULT '',
           node_3 TEXT DEFAULT '',
           node_4 TEXT DEFAULT '',
+          probe_selection TEXT DEFAULT '',
           rx_correction REAL DEFAULT NULL,
           tx_correction REAL DEFAULT NULL,
           offline_notify_disabled TEXT DEFAULT '0',
@@ -122,6 +125,7 @@ export async function initDatabase(db) {
     await db.prepare(createHistoryTableSql('metrics_history')).run();
 
     debug('✅ 数据库初始化完成');
+    await ensureDynamicProbeSchema(db);
     dbInitialized = true;
   } catch (e) {
     console.error('❌ 数据库初始化失败:', e);
@@ -177,6 +181,7 @@ export async function getMetricsHistory(
   server = null,
   longHistoryPoints = DEFAULT_LONG_HISTORY_POINTS
 ) {
+  await ensureDynamicProbeSchema(db);
   const now = Date.now();
   const cacheDuration = getCacheDuration(hours);
   const queryHours = Math.min(hours, 168);
@@ -348,6 +353,11 @@ function buildLatencyHistoryPoint(row, metricType, { includeEmpty = false } = {}
   if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
 
   const point = { ts: timestamp };
+  const observed = Number(row.sample_timestamp) || timestamp;
+  for (const [id, sample] of Object.entries(normalizeProbeResults(row.probe_results))) {
+    // Never relabel an old cached result as a new probe sample.
+    if (sample.ts <= observed && observed - sample.ts <= 120_000) point[id] = metricType === 'loss' ? sample.loss : sample.latency;
+  }
   for (const field of LATENCY_NODE_FIELDS) {
     const column = `${metricType}_${field}`;
     if (!Object.prototype.hasOwnProperty.call(row, column)) continue;
@@ -404,6 +414,7 @@ function normalizeDashboardLatencyWindow(sampleRows, { queryStart, intervalMs, p
 }
 
 export async function getDashboardLatencyHistory(db, servers, options = {}) {
+  await ensureDynamicProbeSchema(db);
   const serverList = Array.isArray(servers) ? servers : [];
   const serverIds = serverList.map(server => String(server?.id || '').trim()).filter(Boolean);
   if (serverIds.length === 0) return new Map();
@@ -585,6 +596,7 @@ export async function weeklyCleanup(db) {
 }
 
 export async function saveMetricsHistory(db, serverId, historyPartitionId, metrics, regionCode = '', timestamp = null, agentVersion = '') {
+  await ensureDynamicProbeSchema(db);
   const historyId = buildHistoryId(historyPartitionId, timestamp);
   const rawTimestamp = Number(timestamp);
   const now = Number.isFinite(rawTimestamp) && rawTimestamp > 0
@@ -668,7 +680,8 @@ export async function saveMetricsHistory(db, serverId, historyPartitionId, metri
     metrics.ip_v6 || '0',
     metrics.boot_time || '',
     parseFloat(metrics.net_rx_monthly) || 0,
-    parseFloat(metrics.net_tx_monthly) || 0
+    parseFloat(metrics.net_tx_monthly) || 0,
+    JSON.stringify(normalizeProbeResults(metrics.probes))
     ).run();
   };
 

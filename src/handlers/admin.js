@@ -1,3 +1,4 @@
+import { normalizeProbeCatalog, normalizeProbeSelection } from '../shared/probes.js';
 import { buildAuthCookie, buildClearAuthCookie, checkAuth, simpleAuthResponse, validateCredentials, generateToken } from '../middleware/auth.js';
 import { getLatestMetricsForAllServers } from '../database/schema.js';
 import { getAllServers, clearServersListCache } from '../utils/cache.js';
@@ -31,8 +32,8 @@ const IMPORT_SERVER_SQL = `
     currency, expire_date,
     traffic_limit, traffic_calc_type, "interface", reset_day, collect_interval, report_interval, wss_report_interval, connection_mode, ping_mode,
     auto_update, custom_ct, custom_cu, custom_cm, custom_bd, node_1, node_2, node_3, node_4, rx_correction, tx_correction,
-    offline_notify_disabled, is_hidden, sort_order, history_partition_id, timestamp, traffic_alert_percent)
-  SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, pid, ?, ?
+    offline_notify_disabled, is_hidden, sort_order, history_partition_id, timestamp, traffic_alert_percent, probe_selection)
+  SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, pid, ?, ?, ?
   FROM next
   WHERE pid IS NOT NULL
 `;
@@ -802,6 +803,10 @@ async function applyImportedSettings({ env, sys, settings }) {
   const appearanceSource = settings && typeof settings === 'object' ? settings.appearance : null;
   const site = pickImportableFields(siteSource, IMPORTABLE_SITE_FIELDS);
   const appearance = pickImportableFields(appearanceSource, IMPORTABLE_APPEARANCE_FIELDS);
+  if ('probe_catalog' in site.picked) {
+    try { site.picked.probe_catalog = normalizeProbeCatalog(site.picked.probe_catalog); }
+    catch { delete site.picked.probe_catalog; site.ignoredFields.push('probe_catalog'); }
+  }
 
   // 主题配置必须是对象，否则整份外观设置会写坏，直接丢弃该字段。
   if (appearance.picked.theme_options !== undefined && !isValidThemeOptions(appearance.picked.theme_options)) {
@@ -930,6 +935,12 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
         return createBadRequestResponse('invalidPingNodeFormat');
       }
 
+      let probeCatalog;
+      if (settings.probe_catalog !== undefined) {
+        try { probeCatalog = normalizeProbeCatalog(settings.probe_catalog); }
+        catch (error) { return createBadRequestResponse(error.message); }
+      }
+
       // UA 必须在任何写库动作之前校验：否则非法值会留下「外观已保存、站点设置未保存」的半成品状态。
       let normalizedUserAgent = '';
       if (settings.ua !== undefined) {
@@ -988,6 +999,8 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
             if (settings[field] && settings[field].length > 0) {
               siteOptions[field] = await hashPassword(settings[field]);
             }
+          } else if (field === 'probe_catalog') {
+            siteOptions[field] = probeCatalog;
           } else if (PING_NODE_FIELDS.includes(field)) {
             siteOptions[field] = pingNodes.values[field];
           } else if (field === 'tg_notify') {
@@ -1141,6 +1154,11 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
       if (!id || !isValidUUID(id)) {
         return createBadRequestResponse('invalidServerId');
       }
+      let probeSelection = null;
+      if (data.probe_selection !== undefined) {
+        try { probeSelection = JSON.stringify(normalizeProbeSelection(data.probe_selection)); }
+        catch (error) { return createBadRequestResponse(error.message); }
+      }
       const effectiveConnectionMode = isWssReportConfigured(sys) ? connection_mode : 'http';
       const agentConfigResult = validateAgentConfigInput({
         collect_interval,
@@ -1192,9 +1210,10 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
       try {
         await env.DB.prepare(`
           UPDATE servers
-          SET name = ?, server_group = ?, region = ?, tags = ?, note = ?, price = ?, billing_cycle = ?, auto_renewal = ?, currency = ?, expire_date = ?, traffic_limit = ?, traffic_calc_type = ?, "interface" = ?, reset_day = ?, collect_interval = ?, report_interval = ?, wss_report_interval = ?, connection_mode = ?, ping_mode = ?, auto_update = ?, custom_ct = ?, custom_cu = ?, custom_cm = ?, custom_bd = ?, node_1 = ?, node_2 = ?, node_3 = ?, node_4 = ?, rx_correction = ?, tx_correction = ?, offline_notify_disabled = ?, is_hidden = ?, traffic_alert_percent = ?
+          SET probe_selection = COALESCE(?, probe_selection), name = ?, server_group = ?, region = ?, tags = ?, note = ?, price = ?, billing_cycle = ?, auto_renewal = ?, currency = ?, expire_date = ?, traffic_limit = ?, traffic_calc_type = ?, "interface" = ?, reset_day = ?, collect_interval = ?, report_interval = ?, wss_report_interval = ?, connection_mode = ?, ping_mode = ?, auto_update = ?, custom_ct = ?, custom_cu = ?, custom_cm = ?, custom_bd = ?, node_1 = ?, node_2 = ?, node_3 = ?, node_4 = ?, rx_correction = ?, tx_correction = ?, offline_notify_disabled = ?, is_hidden = ?, traffic_alert_percent = ?
           WHERE id = ?
         `).bind(
+          probeSelection,
           name || '',
           server_group || 'Default',
           normalizeServerRegion(region),
@@ -1378,7 +1397,8 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
             normalizeBooleanFlag(server.is_hidden),
             server.sort_order ?? 0,
             server.timestamp || Date.now(),
-            normalizePctOrNull(server.traffic_alert_percent)
+            normalizePctOrNull(server.traffic_alert_percent),
+            server.probe_selection ? JSON.stringify(normalizeProbeSelection(server.probe_selection)) : ''
           ).run();
           // 分区号被并发占用或 900 个已用满时 SELECT 不返回行，按跳过处理。
           // 只在明确的 0 行写入时跳过，缺少 meta 不能当成失败。

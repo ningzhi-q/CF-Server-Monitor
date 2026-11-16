@@ -393,7 +393,7 @@ export default {
   installVersionPlaceholder: 'Latest version by default',
   ghProxy: 'Third-party GitHub Proxy',
   ghProxyTip: 'Third-party proxies can see or modify downloaded installation files and may introduce security risks.',
-  installVersionTip: 'Get the latest version from https://github.com/huilang-me/cfsm-agent/releases',
+  installVersionTip: 'Get the latest version from https://github.com/ningzhi-q/cfsm-agent/releases',
   dockerVersionTip: 'Docker image tag, defaults to latest',
   ghProxyPlaceholder: 'Direct',
   pingNodes: 'Ping Nodes',

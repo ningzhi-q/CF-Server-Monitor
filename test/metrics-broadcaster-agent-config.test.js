@@ -678,7 +678,7 @@ test('WSS agent config push uses string body and structured payload', () => {
   };
   const broadcaster = makeBroadcaster([ws]);
 
-  const result = broadcaster._pushAgentConfigFrame('server-1', makeDescriptor());
+  const result = broadcaster._pushAgentConfigFrame('server-1', new Map([[7, makeDescriptor()]]));
 
   assert.deepEqual(result, { matched: 1, delivered: 1 });
   assert.equal(sent.length, 1);
@@ -1182,7 +1182,8 @@ test('history metrics apply configured aggregation policies to batched POST samp
 test('WSS history persistence carries pending history aggregates into next D1 write', async () => {
   const savedRows = [];
   const db = {
-    prepare() {
+    prepare(sql) {
+      if (sql.startsWith('PRAGMA')) return { all: async () => ({ results: [] }) };
       return {
         bind(...args) {
           return {
@@ -1265,14 +1266,18 @@ test('WSS history persistence carries pending history aggregates into next D1 wr
 test('WSS history persistence keeps samples received during a D1 flush for the next write', async () => {
   const savedRows = [];
   let releaseFirstRun = null;
+  let markFirstRunStarted;
+  const firstRunStarted = new Promise(resolve => { markFirstRunStarted = resolve; });
   let holdNextRun = true;
   const db = {
-    prepare() {
+    prepare(sql) {
+      if (sql.startsWith('PRAGMA')) return { all: async () => ({ results: [] }) };
       return {
         bind(...args) {
           return {
             async run() {
               savedRows.push(args);
+              markFirstRunStarted();
               if (holdNextRun) {
                 holdNextRun = false;
                 return new Promise(resolve => {
@@ -1318,7 +1323,7 @@ test('WSS history persistence keeps samples received during a D1 flush for the n
       reportIntervalMs: 30_000
     });
 
-    await Promise.resolve();
+    await firstRunStarted;
     assert.equal(savedRows.length, 1);
     assert.equal(broadcaster.agentHistoryWrites.get('server-1').flushing, true);
 

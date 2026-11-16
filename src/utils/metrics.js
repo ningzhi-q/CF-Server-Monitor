@@ -1,3 +1,4 @@
+import { normalizeProbeResults } from '../shared/probes.js';
 import {
   NUMERIC_METRIC_FIELDS,
   PROBE_METRIC_FIELDS
@@ -115,6 +116,8 @@ export function isDisabledProbeMetric(value) {
 export function coerceNumericMetricFields(payload) {
   if (!payload || typeof payload !== 'object') return payload;
   const result = { ...payload };
+  if ('probes' in payload || 'probe_results' in payload) result.probes = normalizeProbeResults(payload.probes ?? payload.probe_results);
+  delete result.probe_results;
 
   for (const field of NUMERIC_METRIC_FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(result, field)) continue;
@@ -156,6 +159,8 @@ export function normalizeProbeMetricRow(metrics) {
   if (!metrics) return metrics;
 
   const normalized = { ...metrics };
+  if ('probes' in metrics || 'probe_results' in metrics) normalized.probes = normalizeProbeResults(metrics.probes ?? metrics.probe_results);
+  delete normalized.probe_results;
   for (const field of PROBE_METRIC_FIELDS) {
     if (Object.prototype.hasOwnProperty.call(normalized, field)) {
       normalized[field] = normalizeProbeMetric(normalized[field]);
@@ -169,6 +174,7 @@ export function mergeMetricsIntoServer(server, metrics) {
   // Only trusted, sanitized report-cache samples contain location; raw Agent data is not cached.
   if (metrics.location) server.location = metrics.location;
 
+  if ('probes' in metrics || 'probe_results' in metrics) server.probes = normalizeProbeResults(metrics.probes ?? metrics.probe_results);
   server.cpu = metrics.cpu || 0;
   server.load_avg = metrics.load ?? metrics.load_avg ?? '0 0 0';
   server.net_in_speed = metrics.net_in_speed || 0;

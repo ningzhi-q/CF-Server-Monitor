@@ -794,6 +794,8 @@
 
       <div class="settings-section">
         <div class="section-title"><span>▸</span> {{ trans.pingNodes }}</div>
+        <ProbeCatalogEditor v-model="settings.probe_catalog" />
+        <p v-if="settings.probe_catalog?.enabled" class="probe-catalog__hint">下方为旧版 Agent 的原有 8 路配置。</p>
 
         <div class="ping-node-grid">
           <div class="ping-node-item">
@@ -838,12 +840,14 @@
 
     <div class="settings-save-bar">
       <span class="settings-save-hint">{{ trans.saveHint }}</span>
-      <button @click="$emit('save-settings')" class="btn btn-primary btn-lg" :disabled="saving || hasPingNodeErrors || userAgentInvalid">{{ saving ? '⏳' : '💾' }} {{ saving ? trans.saving : trans.saveConfig }}</button>
+      <button @click="$emit('save-settings')" class="btn btn-primary btn-lg" :disabled="saving || hasPingNodeErrors || probeCatalogInvalid || userAgentInvalid">{{ saving ? '⏳' : '💾' }} {{ saving ? trans.saving : trans.saveConfig }}</button>
     </div>
   </div>
 </template>
 
 <script setup>
+import ProbeCatalogEditor from './ProbeCatalogEditor.vue'
+import { normalizeProbeCatalog } from '../../../../shared/probes.js'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { OFFLINE_NOTIFY_MINUTES_MAX } from '../../../utils/notifications.js'
 import HelpTooltip from '../../../components/HelpTooltip.vue'
@@ -859,6 +863,9 @@ const notificationLanguages = NOTIFICATION_LANGUAGE_CODES
   .map((code) => LANGUAGE_MAP[code])
   .filter(Boolean)
 
+const probeCatalogInvalid = computed(() => {
+  try { normalizeProbeCatalog(props.settings.probe_catalog); return false } catch { return true }
+})
 const props = defineProps({
   trans: { type: Object, required: true },
   settings: { type: Object, required: true },

@@ -592,6 +592,7 @@ import TerminalHeader from '../../components/TerminalHeader.vue'
 import HelpTooltip from '../../components/HelpTooltip.vue'
 import AdminLogin from './components/AdminLogin.vue'
 import ServerTable from './components/ServerTable.vue'
+import { normalizeProbeCatalog } from '../../../shared/probes.js'
 import SettingsPanel from './components/SettingsPanel.vue'
 import DatabasePanel from './components/DatabasePanel.vue'
 import ThemeStorePanel from './components/ThemeStorePanel.vue'
@@ -617,7 +618,7 @@ const route = useRoute()
 const router = useRouter()
 const appConfig = inject('appConfig', {})
 let startupConfigConsumed = false
-const AGENT_RELEASE_URL = 'https://api.github.com/repos/huilang-me/cfsm-agent/releases/latest'
+const AGENT_RELEASE_URL = 'https://api.github.com/repos/ningzhi-q/cfsm-agent/releases/latest'
 const AGENT_RELEASE_FAILURE_TTL = 30 * 1000
 
 let cachedAgentReleaseVersion = ''
@@ -1436,6 +1437,7 @@ const loadSettings = async () => {
         custom_cm_name: settingsData.custom_cm_name || '移动',
         custom_bd_name: settingsData.custom_bd_name || 'BGP',
         node_1_name: settingsData.node_1_name || 'Node 1', node_2_name: settingsData.node_2_name || 'Node 2', node_3_name: settingsData.node_3_name || 'Node 3', node_4_name: settingsData.node_4_name || 'Node 4',
+        probe_catalog: normalizeProbeCatalog(settingsData.probe_catalog),
         theme_url: settingsData.theme_url || '',
         csp_static: settingsData.csp_static || '',
         csp_api: settingsData.csp_api || '',
@@ -1630,6 +1632,7 @@ const saveSettings = async () => {
       cloudflare_account_id: settings.value.cloudflare_account_id,
       cloudflare_token: settings.value.cloudflare_token,
       username: settings.value.username,
+      probe_catalog: normalizeProbeCatalog(settings.value.probe_catalog),
       custom_ct: pingNodeValidation.values.custom_ct,
       custom_cu: pingNodeValidation.values.custom_cu,
       custom_cm: pingNodeValidation.values.custom_cm,
@@ -1757,12 +1760,12 @@ const getUninstallCommand = () => {
   const proxy = isGo ? deleteGhProxy.value.trim() : ''
   if (isGo) {
     if (deleteTargetOs.value === 'windows') {
-      const ghUrl = buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.ps1')
+      const ghUrl = buildGhRawUrl(proxy, '/ningzhi-q/cfsm-agent/main/install.ps1')
       const proxyParam = proxy ? ` --install-ghproxy=${quotePowerShellArg(proxy)}` : ''
       return `$script = "$env:TEMP\\install-cf-probe.ps1"; Invoke-WebRequest -Uri ${quotePowerShellArg(ghUrl)} -OutFile $script -UseBasicParsing; PowerShell -ExecutionPolicy Bypass -File $script uninstall${proxyParam}`
     }
     const sudoPrefix = deleteTargetOs.value === 'mac' ? 'sudo ' : ''
-    const ghUrl = buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.sh')
+    const ghUrl = buildGhRawUrl(proxy, '/ningzhi-q/cfsm-agent/main/install.sh')
     const proxyParam = proxy ? ` --install-ghproxy=${quotePosixShellArg(proxy)}` : ''
     const uninstallCommand = `curl -fsSL ${quotePosixShellArg(ghUrl)} | ${sudoPrefix}sh -s -- uninstall${proxyParam}`
     if (deleteTargetOs.value === 'linux' && deleteInstallMode.value === 'cfsm-user') {
@@ -1919,12 +1922,12 @@ const getCustomInstallCommand = () => {
     )
     const ua = installUserAgent()
     if (ua) params.push(`-ua=${quotePowerShellArg(ua)}`)
-    const ghUrl = buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.ps1')
+    const ghUrl = buildGhRawUrl(proxy, '/ningzhi-q/cfsm-agent/main/install.ps1')
     return `$script = "$env:TEMP\\install-cf-probe.ps1"; Invoke-WebRequest -Uri ${quotePowerShellArg(ghUrl)} -OutFile $script -UseBasicParsing; PowerShell -ExecutionPolicy Bypass -File $script ${params.join(' ')}`
   }
   if (targetOs.value === 'docker') {
     const safeTag = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/.test(version) ? version : 'latest'
-    const image = `ghcr.io/huilang-me/cfsm-agent:${safeTag}`
+    const image = `ghcr.io/ningzhi-q/cfsm-agent:${safeTag}`
     const ua = installUserAgent()
     const uaEnv = ua ? ` -e UA=${quotePosixShellArg(ua)}` : ''
     return [
@@ -1945,7 +1948,7 @@ const getCustomInstallCommand = () => {
   )
   const ua = installUserAgent()
   if (ua) params.push(`-ua=${quotePosixShellArg(ua)}`)
-  const ghUrl = buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.sh')
+  const ghUrl = buildGhRawUrl(proxy, '/ningzhi-q/cfsm-agent/main/install.sh')
   const installCommand = `curl -fsSL ${quotePosixShellArg(ghUrl)} | sh -s -- ${params.join(' ')}`
   if (!isDedicatedUserInstall) return installCommand
 
@@ -1976,7 +1979,7 @@ const buildAutoDiscoveryCommand = ({ targetOs: os = 'linux', installMode: mode =
     if (serverName) params.push(`-name=${quotePowerShellArg(serverName)}`)
     const ua = installUserAgent()
     if (ua) params.push(`-ua=${quotePowerShellArg(ua)}`)
-    const ghUrl = buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.ps1')
+    const ghUrl = buildGhRawUrl(proxy, '/ningzhi-q/cfsm-agent/main/install.ps1')
     return `$script = "$env:TEMP\\install-cf-probe.ps1"; Invoke-WebRequest -Uri ${quotePowerShellArg(ghUrl)} -OutFile $script -UseBasicParsing; PowerShell -ExecutionPolicy Bypass -File $script ${params.join(' ')}`
   }
 
@@ -1991,7 +1994,7 @@ const buildAutoDiscoveryCommand = ({ targetOs: os = 'linux', installMode: mode =
   if (serverName) params.push(`-name=${quotePosixShellArg(serverName)}`)
   const ua = installUserAgent()
   if (ua) params.push(`-ua=${quotePosixShellArg(ua)}`)
-  const ghUrl = buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.sh')
+  const ghUrl = buildGhRawUrl(proxy, '/ningzhi-q/cfsm-agent/main/install.sh')
   const installCommand = `curl -fsSL ${quotePosixShellArg(ghUrl)} | sh -s -- ${params.join(' ')}`
   if (os !== 'linux' || mode !== 'cfsm-user') return installCommand
 
@@ -2108,6 +2111,8 @@ const createEditFormFromServer = (server) => ({
     custom_cu: server.custom_cu ?? '',
     custom_cm: server.custom_cm ?? '',
     custom_bd: server.custom_bd ?? '',
+    probe_selection: server.probe_selection || '',
+    ip_v4: server.ip_v4, ip_v6: server.ip_v6,
     node_1: server.node_1 ?? '', node_2: server.node_2 ?? '', node_3: server.node_3 ?? '', node_4: server.node_4 ?? '',
     rx_correction: server.rx_correction ?? '',
     tx_correction: server.tx_correction ?? '',
@@ -2170,6 +2175,7 @@ const buildEditPayloadFromForm = (form) => {
     payload: {
       action: 'edit',
       id: form.id,
+      probe_selection: form.probe_selection,
       name: form.name,
       server_group: form.server_group,
       region: form.region,

@@ -1,7 +1,8 @@
+import { normalizeProbeCatalog, normalizeProbeSelection } from '../shared/probes.js';
 import { md5Hash } from './common.js';
 import { isWssReportConfigured, sanitizeUserAgent } from './settings.js';
 
-export const AGENT_CONFIG_SCHEMA_VERSION = 7;
+export const AGENT_CONFIG_SCHEMA_VERSION = 8;
 export const AGENT_CONFIG_LEGACY_SCHEMA_VERSION = 3;
 export const AGENT_CONFIG_CONNECTION_MODE_SCHEMA_VERSION = 4;
 export const AGENT_CONFIG_WSS_REPORT_INTERVAL_SCHEMA_VERSION = 5;
@@ -338,6 +339,13 @@ export function buildAgentConfig(server, settings = null, schemaVersion = AGENT_
     config.ping_mode = normalizePingMode(server?.ping_mode) || PING_MODE_TCP;
   }
 
+  if (version >= 8) {
+    config.probe_catalog = normalizeProbeCatalog(settings?.probe_catalog);
+    config.probe_selection = normalizeProbeSelection(server?.probe_selection);
+    if (config.probe_catalog.enabled) {
+      for (const key of ['custom_ct', 'custom_cu', 'custom_cm', 'custom_bd', 'node_1', 'node_2', 'node_3', 'node_4']) config[key] = '0';
+    }
+  }
   return config;
 }
 
@@ -365,6 +373,10 @@ export function serializeAgentConfig(config) {
   }
   if (Object.prototype.hasOwnProperty.call(config, 'ping_mode')) {
     serialized += `&ping_mode=${config.ping_mode}`;
+  }
+  if (Object.prototype.hasOwnProperty.call(config, 'probe_catalog')) {
+    serialized += `&probe_catalog=${encodeURIComponent(JSON.stringify(config.probe_catalog))}`;
+    serialized += `&probe_selection=${encodeURIComponent(JSON.stringify(config.probe_selection))}`;
   }
   return serialized;
 }
