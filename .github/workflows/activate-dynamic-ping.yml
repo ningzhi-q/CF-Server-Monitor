@@ -1,0 +1,36 @@
+name: Activate dynamic Ping configuration
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: '应用已核验的 IPv4 / IPv6 探测分组和主题 v1.2.1'
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: dynamic-ping-configuration
+  cancel-in-progress: false
+jobs:
+  activate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify configuration migration
+        run: node --test test/ping-activation.test.js
+      - name: Read or apply the configuration through the existing deployment account
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          APPLY_CONFIGURATION: ${{ inputs.apply }}
+        run: |
+          if [ "$APPLY_CONFIGURATION" = "true" ]; then
+            node scripts/activate-dynamic-ping.mjs --apply
+          else
+            node scripts/activate-dynamic-ping.mjs
+          fi

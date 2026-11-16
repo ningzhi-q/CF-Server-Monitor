@@ -795,52 +795,12 @@
       <div class="settings-section">
         <div class="section-title"><span>▸</span> {{ trans.pingNodes }}</div>
         <ProbeCatalogEditor v-model="settings.probe_catalog" />
-        <p v-if="settings.probe_catalog?.enabled" class="probe-catalog__hint">下方为旧版 Agent 的原有 8 路配置。</p>
-
-        <div class="ping-node-grid">
-          <div class="ping-node-item">
-            <div class="ping-node-fields"><input type="text" v-model.trim="settings.custom_ct_name" class="form-input ping-node-name"><span class="ping-node-arrow">→</span>
-            <input type="text" v-model.trim="settings.custom_ct" :class="['form-input', { 'input-invalid': pingNodeErrors.custom_ct }]" placeholder="gd-ct-dualstack.ip.zstaticcdn.com">
-            </div><p v-if="pingNodeErrors.custom_ct" class="text-red text-sm mt-1">{{ pingNodeErrors.custom_ct }}</p>
-          </div>
-
-          <div class="ping-node-item">
-            <div class="ping-node-fields"><input type="text" v-model.trim="settings.custom_cu_name" class="form-input ping-node-name"><span class="ping-node-arrow">→</span>
-            <input type="text" v-model.trim="settings.custom_cu" :class="['form-input', { 'input-invalid': pingNodeErrors.custom_cu }]" placeholder="gd-cu-dualstack.ip.zstaticcdn.com">
-            </div><p v-if="pingNodeErrors.custom_cu" class="text-red text-sm mt-1">{{ pingNodeErrors.custom_cu }}</p>
-          </div>
-        </div>
-        <div class="ping-node-grid">
-          <div class="ping-node-item">
-            <div class="ping-node-fields"><input type="text" v-model.trim="settings.custom_cm_name" class="form-input ping-node-name"><span class="ping-node-arrow">→</span>
-            <input type="text" v-model.trim="settings.custom_cm" :class="['form-input', { 'input-invalid': pingNodeErrors.custom_cm }]" placeholder="gd-cm-dualstack.ip.zstaticcdn.com">
-            </div><p v-if="pingNodeErrors.custom_cm" class="text-red text-sm mt-1">{{ pingNodeErrors.custom_cm }}</p>
-          </div>
-
-          <div class="ping-node-item">
-            <div class="ping-node-fields"><input type="text" v-model.trim="settings.custom_bd_name" class="form-input ping-node-name"><span class="ping-node-arrow">→</span>
-            <input type="text" v-model.trim="settings.custom_bd" :class="['form-input', { 'input-invalid': pingNodeErrors.custom_bd }]" placeholder="ip.zstaticcdn.com">
-            </div><p v-if="pingNodeErrors.custom_bd" class="text-red text-sm mt-1">{{ pingNodeErrors.custom_bd }}</p>
-          </div>
-        </div>
-        <div class="ping-node-grid">
-          <div v-for="field in ['node_1', 'node_2']" :key="field" class="ping-node-item">
-            <div class="ping-node-fields"><input type="text" v-model.trim="settings[`${field}_name`]" class="form-input ping-node-name"><span class="ping-node-arrow">→</span><input type="text" v-model.trim="settings[field]" :class="['form-input', { 'input-invalid': pingNodeErrors[field] }]" placeholder="host[:port] / [IPv6]:port"></div>
-            <p v-if="pingNodeErrors[field]" class="text-red text-sm mt-1">{{ pingNodeErrors[field] }}</p>
-          </div>
-        </div>
-        <div class="ping-node-grid">
-          <div v-for="field in ['node_3', 'node_4']" :key="field" class="ping-node-item">
-            <div class="ping-node-fields"><input type="text" v-model.trim="settings[`${field}_name`]" class="form-input ping-node-name"><span class="ping-node-arrow">→</span><input type="text" v-model.trim="settings[field]" :class="['form-input', { 'input-invalid': pingNodeErrors[field] }]" placeholder="host[:port] / [IPv6]:port"></div>
-            <p v-if="pingNodeErrors[field]" class="text-red text-sm mt-1">{{ pingNodeErrors[field] }}</p>
-          </div>
-        </div>
       </div>
     </div>
 
     <div class="settings-save-bar">
       <span class="settings-save-hint">{{ trans.saveHint }}</span>
-      <button @click="$emit('save-settings')" class="btn btn-primary btn-lg" :disabled="saving || hasPingNodeErrors || probeCatalogInvalid || userAgentInvalid">{{ saving ? '⏳' : '💾' }} {{ saving ? trans.saving : trans.saveConfig }}</button>
+      <button @click="$emit('save-settings')" class="btn btn-primary btn-lg" :disabled="saving || probeCatalogInvalid || userAgentInvalid">{{ saving ? '⏳' : '💾' }} {{ saving ? trans.saving : trans.saveConfig }}</button>
     </div>
   </div>
 </template>
@@ -852,7 +812,6 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { OFFLINE_NOTIFY_MINUTES_MAX } from '../../../utils/notifications.js'
 import HelpTooltip from '../../../components/HelpTooltip.vue'
 import { FRONTEND_WS_TIMEOUT_MINUTES_MAX, HISTORY } from '../../../utils/constants.js'
-import { PING_NODE_FIELDS, validatePingNode } from '../../../utils/pingNode.js'
 import { LANGUAGES, LANGUAGE_MAP } from '../../../locales'
 import { NOTIFICATION_LANGUAGE_CODES } from '../../../../shared/languages.js'
 
@@ -1423,19 +1382,6 @@ const removeResourceAlertRule = (index) => {
   ensureResourceAlertRules().splice(index, 1)
 }
 
-const pingNodeErrorMessage = computed(() => (
-  props.trans.invalidPingNodeFormat || 'Use domain, IPv4, or host:port. Port must be 1-65535.'
-))
-
-const pingNodeErrors = computed(() => Object.fromEntries(
-  PING_NODE_FIELDS.map(field => [
-    field,
-    validatePingNode(props.settings[field]).valid ? '' : pingNodeErrorMessage.value
-  ])
-))
-
-const hasPingNodeErrors = computed(() => Object.values(pingNodeErrors.value).some(Boolean))
-
 // 与服务端 settings.js / agent config.go 保持一致：只允许在请求头、config.conf、
 // 安装命令引号下都安全的字符；留空由服务端回退默认 cfsm。
 const USER_AGENT_ALLOWED_RE = /^[A-Za-z0-9 _.\-/,:;()+=@#*?~]*$/
@@ -1443,8 +1389,6 @@ const userAgentInvalid = computed(() => {
   const value = String(props.settings.ua ?? '').trim()
   return value.length > 100 || !USER_AGENT_ALLOWED_RE.test(value)
 })
-
-const validatePingNodes = () => !hasPingNodeErrors.value
 
 const isValidCspOrigin = (value) => {
   const raw = String(value || '').trim()
@@ -1485,5 +1429,5 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', closeResourceAlertServerDropdowns)
 })
 
-defineExpose({ validateCspField, cspErrors, validatePingNodes, pingNodeErrors, validateSmtpFields, smtpErrors })
+defineExpose({ validateCspField, cspErrors, validateSmtpFields, smtpErrors })
 </script>
