@@ -2060,6 +2060,108 @@ body::before {
 
 .admin-container {
     position: relative;
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.admin-container > .terminal-header,
+.admin-status-panel,
+.admin-workspace > .tabs {
+    flex: none;
+}
+
+.admin-workspace {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0;
+}
+
+.admin-scroll-content {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+/* Leave room for forms on phones and short / landscape viewports. */
+@media (max-width: 768px), (max-height: 720px) {
+    .admin-container {
+        padding: 8px;
+    }
+
+    .admin-status-panel,
+    .admin-workspace {
+        padding: 10px;
+    }
+
+    .admin-status-panel,
+    .admin-status-panel .panel-header,
+    .admin-workspace > .tabs {
+        margin-bottom: 10px;
+    }
+
+    .admin-status-panel .stats-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        margin-bottom: 0;
+        gap: 4px;
+    }
+
+    .admin-status-panel .stat-card {
+        padding: 8px 4px;
+    }
+
+    .admin-status-panel .stat-main-value {
+        font-size: 20px;
+    }
+
+    .admin-status-panel .stat-label {
+        font-size: 10px;
+        overflow-wrap: anywhere;
+    }
+
+    .admin-workspace > .tabs {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+
+    .admin-workspace > .tabs .tab-btn {
+        flex: none;
+        white-space: nowrap;
+        padding: 8px 10px;
+    }
+}
+
+@media (max-height: 480px) {
+    .admin-container > .terminal-header {
+        padding: 6px 12px;
+    }
+
+    .admin-status-panel,
+    .admin-workspace {
+        padding: 6px;
+    }
+
+    .admin-status-panel,
+    .admin-status-panel .panel-header,
+    .admin-workspace > .tabs {
+        margin-bottom: 6px;
+    }
+
+    .admin-status-panel .stat-card {
+        padding: 4px;
+    }
+
+    .admin-status-panel .stat-main-value {
+        font-size: 16px;
+        line-height: 1.2;
+        margin-bottom: 2px;
+    }
 }
 
 .admin-loading-overlay {
@@ -2976,6 +3078,52 @@ body::before {
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     overflow-x: hidden;
     overflow-y: auto;
+}
+
+.edit-server-modal {
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    max-height: 90dvh;
+    overflow: hidden;
+}
+
+.edit-server-modal > .modal-header,
+.edit-server-modal > .modal-footer {
+    flex: none;
+}
+
+.edit-server-modal > .modal-header .modal-title {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.edit-server-modal > .modal-header .modal-close {
+    flex: none;
+}
+
+.edit-server-modal > .modal-scroll-body {
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+@media (max-width: 768px), (max-height: 480px) {
+    .edit-server-modal {
+        padding: 12px;
+        max-width: calc(100% - 16px);
+    }
+
+    .edit-server-modal > .modal-header {
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+    }
+
+    .edit-server-modal > .modal-footer {
+        margin-top: 12px;
+        padding-top: 8px;
+    }
 }
 
 .auto-update-warning-modal {

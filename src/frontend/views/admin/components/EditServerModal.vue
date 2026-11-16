@@ -5,261 +5,263 @@
         <div class="modal-title">{{ currentServerName }}</div>
         <button class="modal-close" @click="$emit('close')">✕</button>
       </div>
-      <input type="hidden" v-model="editForm.id">
+      <div class="modal-scroll-body" tabindex="0">
+        <input type="hidden" v-model="editForm.id">
 
-      <div class="form-row">
-        <div class="form-group flex-1">
-          <label class="form-label">{{ trans.hostnameLabel }} <span class="required">*</span></label>
-          <input type="text" name="edit_name" autocomplete="off" v-model="editForm.name" class="form-input" placeholder="e.g. My Server">
-        </div>
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label class="form-label">{{ trans.hostnameLabel }} <span class="required">*</span></label>
+            <input type="text" name="edit_name" autocomplete="off" v-model="editForm.name" class="form-input" placeholder="e.g. My Server">
+          </div>
 
-        <div class="form-group flex-1">
-          <label class="form-label">{{ trans.groupName }}</label>
-          <input type="text" name="edit_server_group" autocomplete="off" v-model="editForm.server_group" class="form-input" placeholder="e.g. US VPS">
+          <div class="form-group flex-1">
+            <label class="form-label">{{ trans.groupName }}</label>
+            <input type="text" name="edit_server_group" autocomplete="off" v-model="editForm.server_group" class="form-input" placeholder="e.g. US VPS">
+          </div>
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group flex-1">
-          <label class="form-label">{{ trans.tags }}</label>
-          <input type="text" name="edit_tags" autocomplete="off" v-model="editForm.tags" class="form-input" :placeholder="trans.tagsPlaceholder">
-        </div>
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label class="form-label">{{ trans.tags }}</label>
+            <input type="text" name="edit_tags" autocomplete="off" v-model="editForm.tags" class="form-input" :placeholder="trans.tagsPlaceholder">
+          </div>
 
-        <div class="form-group flex-1">
-          <label class="form-label">{{ trans.region }} CN/US/GB</label>
-          <input type="text" name="edit_region" autocomplete="off" v-model.trim="editForm.region" class="form-input" :placeholder="trans.regionPlaceholder">
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">{{ trans.note }}</label>
-        <textarea name="edit_note" autocomplete="off" v-model="editForm.note" class="form-textarea" rows="2" :placeholder="trans.notePlaceholder"></textarea>
-      </div>
-
-      <div class="form-row mobile-two-row">
-        <div class="form-group flex-1">
-          <label class="form-label">{{ trans.currency }}</label>
-          <select v-model="editForm.currency" class="form-select">
-            <option v-for="item in currencySelectOptions" :key="item.symbol" :value="item.symbol">{{ currencyLabel(item) }}</option>
-          </select>
-        </div>
-
-        <div class="form-group flex-1">
-          <label class="form-label">{{ trans.price }}</label>
-          <input type="text" name="edit_price" autocomplete="off" inputmode="decimal" v-model="editForm.price" class="form-input" placeholder="40.00" @blur="normalizePriceInput">
-        </div>
-
-        <div class="form-group flex-1">
-          <label class="form-label">{{ trans.billingCycle }}</label>
-          <select :value="editForm.billing_cycle" @change="applyBillingCycleDefaults(editForm, $event.target.value)" class="form-select">
-            <option v-for="item in billingCycleOptions" :key="item.value" :value="item.value">{{ cycleLabel(item) }}</option>
-          </select>
-        </div>
-
-        <div class="form-group flex-1">
-          <label class="form-label">{{ trans.expirationDate }}</label>
-          <ExpirationDateInput :key="`${editForm.id}-${show}`" v-model="editForm.expire_date" name="edit_expire_date" :trans="trans" />
-        </div>
-      </div>
-
-      <div class="form-row mobile-two-row">
-        <div class="form-group flex-1">
-          <label class="form-label">{{ trans.trafficLimit }} (GB)</label>
-          <input type="number" name="edit_traffic_limit" autocomplete="off" v-model="editForm.traffic_limit" class="form-input" placeholder="e.g. 1000" min="0" step="1">
-        </div>
-        <div class="form-group flex-1">
-          <label class="form-label">{{ trans.trafficCalcType }}</label>
-          <select v-model="editForm.traffic_calc_type" class="form-select">
-            <option value="total">{{ trans.trafficCalcTotal }}</option>
-            <option value="ul">{{ trans.trafficCalcUl }}</option>
-            <option value="dl">{{ trans.trafficCalcDl }}</option>
-            <option value="max">{{ trans.trafficCalcMax }}</option>
-          </select>
-        </div>
-        <div class="form-group flex-1">
-          <label class="form-label">
-            {{ trans.trafficResetDay }}
-            <HelpTooltip :text="trans.trafficResetDayTip" />
-          </label>
-          <select ref="editResetDayRef" name="edit_reset_day" v-model="editForm.reset_day" class="form-select">
-            <option :value="0">0</option>
-            <option v-for="day in 31" :key="day" :value="day">{{ day }}</option>
-          </select>
-        </div>
-        <div class="form-group flex-1">
-          <label class="form-label">
-            {{ trans.trafficAlertPercent }} (%)
-            <HelpTooltip :text="trans.trafficAlertPercentTip" />
-          </label>
-          <input type="number" name="edit_traffic_alert_percent" autocomplete="off" v-model="editForm.traffic_alert_percent" class="form-input" min="0" max="100" step="1">
-        </div>
-      </div>
-
-      <div class="form-row mobile-two-row">
-        <div class="form-group flex-1">
-          <label class="form-label">
-            {{ trans.collectInterval }}
-            <HelpTooltip :text="trans.collectIntervalHint" />
-          </label>
-          <select v-model="editForm.collect_interval" class="form-select">
-            <option :value="0">0</option>
-            <option :value="1">1</option>
-            <option :value="2">2</option>
-            <option :value="5">5</option>
-            <option :value="10">10</option>
-          </select>
-        </div>
-        <div class="form-group flex-1">
-          <label class="form-label">{{ trans.reportInterval }}</label>
-          <select v-model="editForm.report_interval" class="form-select">
-            <option :value="30">30</option>
-            <option :value="60">60</option>
-            <option :value="120">120</option>
-            <option :value="180">180</option>
-          </select>
-        </div>
-        <div class="form-group flex-1">
-          <label class="form-label">
-            {{ trans.connectionMode }}
-            <HelpTooltip v-if="!isWssReportEnabled" :text="trans.wssReportDisabledConnectionHint" />
-          </label>
-          <select v-model="editForm.connection_mode" class="form-select" :disabled="!isWssReportEnabled">
-            <option value="auto">{{ trans.connectionModeAuto }}</option>
-            <option value="http">{{ trans.connectionModeHttp }}</option>
-          </select>
-        </div>
-        <div v-if="isWssReportEnabled && editForm.connection_mode === 'auto'" class="form-group flex-1">
-          <label class="form-label">{{ trans.wssReportInterval }}</label>
-          <select v-model="editForm.wss_report_interval" class="form-select">
-            <option v-for="second in 5" :key="second" :value="second">{{ second }}</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-row mobile-two-row">
-        <div class="form-group flex-1">
-          <label class="form-label">
-            {{ trans.pingMode }}
-            <HelpTooltip :text="trans.pingModeIcmpRootHint" />
-          </label>
-          <select v-model="editForm.ping_mode" class="form-select">
-            <option value="tcp">TCP</option>
-            <option value="icmp">ICMP (root)</option>
-          </select>
-        </div>
-        <div class="form-group flex-1">
-          <label class="form-label">
-            {{ trans.networkInterface }}
-            <HelpTooltip :text="trans.networkInterfaceHint" />
-          </label>
-          <input type="text" name="edit_interface" autocomplete="off" v-model.trim="editForm.interface" class="form-input" placeholder="eth0">
-        </div>
-        <div class="form-group flex-1">
-          <label class="form-label">
-            {{ trans.rxCorrection }} (GB)
-            <HelpTooltip :text="trans.correctionHint" />
-          </label>
-          <input type="number" name="edit_rx_correction" autocomplete="off" v-model="editForm.rx_correction" class="form-input" placeholder="0" min="0" step="0.1">
-        </div>
-        <div class="form-group flex-1">
-          <label class="form-label">
-            {{ trans.txCorrection }} (GB)
-            <HelpTooltip :text="trans.correctionHint" />
-          </label>
-          <input type="number" name="edit_tx_correction" autocomplete="off" v-model="editForm.tx_correction" class="form-input" placeholder="0" min="0" step="0.1">
-        </div>
-      </div>
-
-      <ProbeSelectionEditor v-if="settings.probe_catalog?.enabled" v-model="editForm.probe_selection" :catalog="settings.probe_catalog" :ipv4="editForm.ip_v4" :ipv6="editForm.ip_v6" />
-      <div class="form-row">
-        <div class="form-group flex-1">
-          <label class="form-label">
-            {{ settings.custom_ct_name || trans.customCt }}
-            <HelpTooltip :text="trans.pingNodeTip" />
-          </label>
-          <input type="text" name="edit_custom_ct" autocomplete="off" v-model.trim="editForm.custom_ct" :class="['form-input', { 'input-invalid': pingNodeErrors.custom_ct }]" :placeholder="settings.custom_ct || 'gd-ct-dualstack.ip.zstaticcdn.com'">
-          <p v-if="pingNodeErrors.custom_ct" class="text-red text-sm mt-1">{{ pingNodeErrors.custom_ct }}</p>
-        </div>
-        <div class="form-group flex-1">
-          <label class="form-label">
-            {{ settings.custom_cu_name || trans.customCu }}
-            <HelpTooltip :text="trans.pingNodeTip" />
-          </label>
-          <input type="text" name="edit_custom_cu" autocomplete="off" v-model.trim="editForm.custom_cu" :class="['form-input', { 'input-invalid': pingNodeErrors.custom_cu }]" :placeholder="settings.custom_cu || 'gd-cu-dualstack.ip.zstaticcdn.com'">
-          <p v-if="pingNodeErrors.custom_cu" class="text-red text-sm mt-1">{{ pingNodeErrors.custom_cu }}</p>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group flex-1">
-          <label class="form-label">
-            {{ settings.custom_cm_name || trans.customCm }}
-            <HelpTooltip :text="trans.pingNodeTip" />
-          </label>
-          <input type="text" name="edit_custom_cm" autocomplete="off" v-model.trim="editForm.custom_cm" :class="['form-input', { 'input-invalid': pingNodeErrors.custom_cm }]" :placeholder="settings.custom_cm || 'gd-cm-dualstack.ip.zstaticcdn.com'">
-          <p v-if="pingNodeErrors.custom_cm" class="text-red text-sm mt-1">{{ pingNodeErrors.custom_cm }}</p>
-        </div>
-        <div class="form-group flex-1">
-          <label class="form-label">
-            {{ settings.custom_bd_name || trans.customBd }}
-            <HelpTooltip :text="trans.pingNodeTip" />
-          </label>
-          <input type="text" name="edit_custom_bd" autocomplete="off" v-model.trim="editForm.custom_bd" :class="['form-input', { 'input-invalid': pingNodeErrors.custom_bd }]" :placeholder="settings.custom_bd || 'ip.zstaticcdn.com'">
-          <p v-if="pingNodeErrors.custom_bd" class="text-red text-sm mt-1">{{ pingNodeErrors.custom_bd }}</p>
-        </div>
-      </div>
-      <div class="form-row">
-        <div v-for="(field, index) in ['node_1', 'node_2']" :key="field" class="form-group flex-1">
-          <label class="form-label">
-            {{ settings[`${field}_name`] || `Node ${index + 1}` }}
-            <HelpTooltip :text="trans.pingNodeTip" />
-          </label>
-          <input type="text" :name="`edit_${field}`" autocomplete="off" v-model.trim="editForm[field]" :class="['form-input', { 'input-invalid': pingNodeErrors[field] }]" :placeholder="settings[field] || 'host[:port] / [IPv6]:port'">
-          <p v-if="pingNodeErrors[field]" class="text-red text-sm mt-1">{{ pingNodeErrors[field] }}</p>
-        </div>
-      </div>
-      <div class="form-row">
-        <div v-for="(field, index) in ['node_3', 'node_4']" :key="field" class="form-group flex-1">
-          <label class="form-label">
-            {{ settings[`${field}_name`] || `Node ${index + 3}` }}
-            <HelpTooltip :text="trans.pingNodeTip" />
-          </label>
-          <input type="text" :name="`edit_${field}`" autocomplete="off" v-model.trim="editForm[field]" :class="['form-input', { 'input-invalid': pingNodeErrors[field] }]" :placeholder="settings[field] || 'host[:port] / [IPv6]:port'">
-          <p v-if="pingNodeErrors[field]" class="text-red text-sm mt-1">{{ pingNodeErrors[field] }}</p>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group flex-1">
-          <div class="checkbox-item no-margin">
-            <input type="checkbox" v-model="editForm.auto_renewal" :disabled="!canAutoRenew">
-            <label>
-              <b>{{ trans.autoRenewal }}</b>
-            </label>
+          <div class="form-group flex-1">
+            <label class="form-label">{{ trans.region }} CN/US/GB</label>
+            <input type="text" name="edit_region" autocomplete="off" v-model.trim="editForm.region" class="form-input" :placeholder="trans.regionPlaceholder">
           </div>
         </div>
 
         <div class="form-group">
-          <div class="checkbox-item no-margin">
-            <input type="checkbox" :checked="editForm.auto_update" @change="handleAutoUpdateChange">
-            <label>
-              <b>{{ trans.autoUpdate }}</b>
-            </label>
+          <label class="form-label">{{ trans.note }}</label>
+          <textarea name="edit_note" autocomplete="off" v-model="editForm.note" class="form-textarea" rows="2" :placeholder="trans.notePlaceholder"></textarea>
+        </div>
+
+        <div class="form-row mobile-two-row">
+          <div class="form-group flex-1">
+            <label class="form-label">{{ trans.currency }}</label>
+            <select v-model="editForm.currency" class="form-select">
+              <option v-for="item in currencySelectOptions" :key="item.symbol" :value="item.symbol">{{ currencyLabel(item) }}</option>
+            </select>
+          </div>
+
+          <div class="form-group flex-1">
+            <label class="form-label">{{ trans.price }}</label>
+            <input type="text" name="edit_price" autocomplete="off" inputmode="decimal" v-model="editForm.price" class="form-input" placeholder="40.00" @blur="normalizePriceInput">
+          </div>
+
+          <div class="form-group flex-1">
+            <label class="form-label">{{ trans.billingCycle }}</label>
+            <select :value="editForm.billing_cycle" @change="applyBillingCycleDefaults(editForm, $event.target.value)" class="form-select">
+              <option v-for="item in billingCycleOptions" :key="item.value" :value="item.value">{{ cycleLabel(item) }}</option>
+            </select>
+          </div>
+
+          <div class="form-group flex-1">
+            <label class="form-label">{{ trans.expirationDate }}</label>
+            <ExpirationDateInput :key="`${editForm.id}-${show}`" v-model="editForm.expire_date" name="edit_expire_date" :trans="trans" />
           </div>
         </div>
 
-        <div class="form-group">
-          <div class="checkbox-item no-margin">
-            <input type="checkbox" v-model="editForm.is_hidden">
-            <label>
-              <b>{{ trans.hideFromPublic }}</b>
+        <div class="form-row mobile-two-row">
+          <div class="form-group flex-1">
+            <label class="form-label">{{ trans.trafficLimit }} (GB)</label>
+            <input type="number" name="edit_traffic_limit" autocomplete="off" v-model="editForm.traffic_limit" class="form-input" placeholder="e.g. 1000" min="0" step="1">
+          </div>
+          <div class="form-group flex-1">
+            <label class="form-label">{{ trans.trafficCalcType }}</label>
+            <select v-model="editForm.traffic_calc_type" class="form-select">
+              <option value="total">{{ trans.trafficCalcTotal }}</option>
+              <option value="ul">{{ trans.trafficCalcUl }}</option>
+              <option value="dl">{{ trans.trafficCalcDl }}</option>
+              <option value="max">{{ trans.trafficCalcMax }}</option>
+            </select>
+          </div>
+          <div class="form-group flex-1">
+            <label class="form-label">
+              {{ trans.trafficResetDay }}
+              <HelpTooltip :text="trans.trafficResetDayTip" />
             </label>
+            <select ref="editResetDayRef" name="edit_reset_day" v-model="editForm.reset_day" class="form-select">
+              <option :value="0">0</option>
+              <option v-for="day in 31" :key="day" :value="day">{{ day }}</option>
+            </select>
+          </div>
+          <div class="form-group flex-1">
+            <label class="form-label">
+              {{ trans.trafficAlertPercent }} (%)
+              <HelpTooltip :text="trans.trafficAlertPercentTip" />
+            </label>
+            <input type="number" name="edit_traffic_alert_percent" autocomplete="off" v-model="editForm.traffic_alert_percent" class="form-input" min="0" max="100" step="1">
           </div>
         </div>
 
-        <div v-if="hasNodeNotificationOptions" class="form-group">
-          <div class="checkbox-item no-margin">
-            <input type="checkbox" v-model="editForm.offline_notify_disabled">
-            <label>
-              <b>{{ trans.disableOfflineNotify }}</b>
+        <div class="form-row mobile-two-row">
+          <div class="form-group flex-1">
+            <label class="form-label">
+              {{ trans.collectInterval }}
+              <HelpTooltip :text="trans.collectIntervalHint" />
             </label>
+            <select v-model="editForm.collect_interval" class="form-select">
+              <option :value="0">0</option>
+              <option :value="1">1</option>
+              <option :value="2">2</option>
+              <option :value="5">5</option>
+              <option :value="10">10</option>
+            </select>
+          </div>
+          <div class="form-group flex-1">
+            <label class="form-label">{{ trans.reportInterval }}</label>
+            <select v-model="editForm.report_interval" class="form-select">
+              <option :value="30">30</option>
+              <option :value="60">60</option>
+              <option :value="120">120</option>
+              <option :value="180">180</option>
+            </select>
+          </div>
+          <div class="form-group flex-1">
+            <label class="form-label">
+              {{ trans.connectionMode }}
+              <HelpTooltip v-if="!isWssReportEnabled" :text="trans.wssReportDisabledConnectionHint" />
+            </label>
+            <select v-model="editForm.connection_mode" class="form-select" :disabled="!isWssReportEnabled">
+              <option value="auto">{{ trans.connectionModeAuto }}</option>
+              <option value="http">{{ trans.connectionModeHttp }}</option>
+            </select>
+          </div>
+          <div v-if="isWssReportEnabled && editForm.connection_mode === 'auto'" class="form-group flex-1">
+            <label class="form-label">{{ trans.wssReportInterval }}</label>
+            <select v-model="editForm.wss_report_interval" class="form-select">
+              <option v-for="second in 5" :key="second" :value="second">{{ second }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row mobile-two-row">
+          <div class="form-group flex-1">
+            <label class="form-label">
+              {{ trans.pingMode }}
+              <HelpTooltip :text="trans.pingModeIcmpRootHint" />
+            </label>
+            <select v-model="editForm.ping_mode" class="form-select">
+              <option value="tcp">TCP</option>
+              <option value="icmp">ICMP (root)</option>
+            </select>
+          </div>
+          <div class="form-group flex-1">
+            <label class="form-label">
+              {{ trans.networkInterface }}
+              <HelpTooltip :text="trans.networkInterfaceHint" />
+            </label>
+            <input type="text" name="edit_interface" autocomplete="off" v-model.trim="editForm.interface" class="form-input" placeholder="eth0">
+          </div>
+          <div class="form-group flex-1">
+            <label class="form-label">
+              {{ trans.rxCorrection }} (GB)
+              <HelpTooltip :text="trans.correctionHint" />
+            </label>
+            <input type="number" name="edit_rx_correction" autocomplete="off" v-model="editForm.rx_correction" class="form-input" placeholder="0" min="0" step="0.1">
+          </div>
+          <div class="form-group flex-1">
+            <label class="form-label">
+              {{ trans.txCorrection }} (GB)
+              <HelpTooltip :text="trans.correctionHint" />
+            </label>
+            <input type="number" name="edit_tx_correction" autocomplete="off" v-model="editForm.tx_correction" class="form-input" placeholder="0" min="0" step="0.1">
+          </div>
+        </div>
+
+        <ProbeSelectionEditor v-if="settings.probe_catalog?.enabled" v-model="editForm.probe_selection" :catalog="settings.probe_catalog" :ipv4="editForm.ip_v4" :ipv6="editForm.ip_v6" />
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label class="form-label">
+              {{ settings.custom_ct_name || trans.customCt }}
+              <HelpTooltip :text="trans.pingNodeTip" />
+            </label>
+            <input type="text" name="edit_custom_ct" autocomplete="off" v-model.trim="editForm.custom_ct" :class="['form-input', { 'input-invalid': pingNodeErrors.custom_ct }]" :placeholder="settings.custom_ct || 'gd-ct-dualstack.ip.zstaticcdn.com'">
+            <p v-if="pingNodeErrors.custom_ct" class="text-red text-sm mt-1">{{ pingNodeErrors.custom_ct }}</p>
+          </div>
+          <div class="form-group flex-1">
+            <label class="form-label">
+              {{ settings.custom_cu_name || trans.customCu }}
+              <HelpTooltip :text="trans.pingNodeTip" />
+            </label>
+            <input type="text" name="edit_custom_cu" autocomplete="off" v-model.trim="editForm.custom_cu" :class="['form-input', { 'input-invalid': pingNodeErrors.custom_cu }]" :placeholder="settings.custom_cu || 'gd-cu-dualstack.ip.zstaticcdn.com'">
+            <p v-if="pingNodeErrors.custom_cu" class="text-red text-sm mt-1">{{ pingNodeErrors.custom_cu }}</p>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label class="form-label">
+              {{ settings.custom_cm_name || trans.customCm }}
+              <HelpTooltip :text="trans.pingNodeTip" />
+            </label>
+            <input type="text" name="edit_custom_cm" autocomplete="off" v-model.trim="editForm.custom_cm" :class="['form-input', { 'input-invalid': pingNodeErrors.custom_cm }]" :placeholder="settings.custom_cm || 'gd-cm-dualstack.ip.zstaticcdn.com'">
+            <p v-if="pingNodeErrors.custom_cm" class="text-red text-sm mt-1">{{ pingNodeErrors.custom_cm }}</p>
+          </div>
+          <div class="form-group flex-1">
+            <label class="form-label">
+              {{ settings.custom_bd_name || trans.customBd }}
+              <HelpTooltip :text="trans.pingNodeTip" />
+            </label>
+            <input type="text" name="edit_custom_bd" autocomplete="off" v-model.trim="editForm.custom_bd" :class="['form-input', { 'input-invalid': pingNodeErrors.custom_bd }]" :placeholder="settings.custom_bd || 'ip.zstaticcdn.com'">
+            <p v-if="pingNodeErrors.custom_bd" class="text-red text-sm mt-1">{{ pingNodeErrors.custom_bd }}</p>
+          </div>
+        </div>
+        <div class="form-row">
+          <div v-for="(field, index) in ['node_1', 'node_2']" :key="field" class="form-group flex-1">
+            <label class="form-label">
+              {{ settings[`${field}_name`] || `Node ${index + 1}` }}
+              <HelpTooltip :text="trans.pingNodeTip" />
+            </label>
+            <input type="text" :name="`edit_${field}`" autocomplete="off" v-model.trim="editForm[field]" :class="['form-input', { 'input-invalid': pingNodeErrors[field] }]" :placeholder="settings[field] || 'host[:port] / [IPv6]:port'">
+            <p v-if="pingNodeErrors[field]" class="text-red text-sm mt-1">{{ pingNodeErrors[field] }}</p>
+          </div>
+        </div>
+        <div class="form-row">
+          <div v-for="(field, index) in ['node_3', 'node_4']" :key="field" class="form-group flex-1">
+            <label class="form-label">
+              {{ settings[`${field}_name`] || `Node ${index + 3}` }}
+              <HelpTooltip :text="trans.pingNodeTip" />
+            </label>
+            <input type="text" :name="`edit_${field}`" autocomplete="off" v-model.trim="editForm[field]" :class="['form-input', { 'input-invalid': pingNodeErrors[field] }]" :placeholder="settings[field] || 'host[:port] / [IPv6]:port'">
+            <p v-if="pingNodeErrors[field]" class="text-red text-sm mt-1">{{ pingNodeErrors[field] }}</p>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <div class="checkbox-item no-margin">
+              <input type="checkbox" v-model="editForm.auto_renewal" :disabled="!canAutoRenew">
+              <label>
+                <b>{{ trans.autoRenewal }}</b>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="checkbox-item no-margin">
+              <input type="checkbox" :checked="editForm.auto_update" @change="handleAutoUpdateChange">
+              <label>
+                <b>{{ trans.autoUpdate }}</b>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="checkbox-item no-margin">
+              <input type="checkbox" v-model="editForm.is_hidden">
+              <label>
+                <b>{{ trans.hideFromPublic }}</b>
+              </label>
+            </div>
+          </div>
+
+          <div v-if="hasNodeNotificationOptions" class="form-group">
+            <div class="checkbox-item no-margin">
+              <input type="checkbox" v-model="editForm.offline_notify_disabled">
+              <label>
+                <b>{{ trans.disableOfflineNotify }}</b>
+              </label>
+            </div>
           </div>
         </div>
       </div>

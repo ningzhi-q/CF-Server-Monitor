@@ -28,7 +28,7 @@
         </div>
       </div>
 
-      <div class="main-panel">
+      <div class="main-panel admin-status-panel">
         <div class="panel-header">
           <div class="panel-title">
             <span class="prompt">$</span> {{ trans.sudoStatus }}
@@ -75,7 +75,7 @@
         </div>
       </div>
 
-      <div class="main-panel">
+      <div class="main-panel admin-workspace">
         <div class="tabs">
           <button
             class="tab-btn"
@@ -99,79 +99,81 @@
           >{{ trans.themeStore }}</button>
         </div>
 
-        <ServerTable
-          v-model:new-server-name="newServerName"
-          v-model:new-server-group="newServerGroup"
-          :trans="trans"
-          :servers="servers"
-          :selected-servers="selectedServers"
-          :groups="groups"
-          :active-tab="activeTab"
-          :selected-api-index="selectedApiIndex"
-          :latest-agent-version="latestAgentVersion"
-          :cache-refreshing="cacheRefreshing"
-          :copied-server-id="copiedServerId"
-          :copied-note-server-id="copiedNoteServerId"
-          :copied-spec-key="copiedSpecKey"
-          @add-server="addServer"
-          @auto-discovery-cmd="openAutoDiscoveryModal"
-          @batch-edit="openBatchEditModal"
-          @batch-delete="batchDelete"
-          @toggle-select-all="toggleSelectAll"
-          @refresh-cache="refreshServersCache"
-          @select-all="handleSelectAll"
-          @drag-start="handleDragStart"
-          @drop="handleDrop"
-          @toggle-server="toggleServer"
-          @copy-note="copyServerNote"
-          @copy-spec="copyServerSpec"
-          @copy-cmd="copyCmd"
-          @edit="openEditModal"
-          @delete="openDeleteModal"
-        />
+        <div ref="adminScrollContent" class="admin-scroll-content" tabindex="0">
+          <ServerTable
+            v-model:new-server-name="newServerName"
+            v-model:new-server-group="newServerGroup"
+            :trans="trans"
+            :servers="servers"
+            :selected-servers="selectedServers"
+            :groups="groups"
+            :active-tab="activeTab"
+            :selected-api-index="selectedApiIndex"
+            :latest-agent-version="latestAgentVersion"
+            :cache-refreshing="cacheRefreshing"
+            :copied-server-id="copiedServerId"
+            :copied-note-server-id="copiedNoteServerId"
+            :copied-spec-key="copiedSpecKey"
+            @add-server="addServer"
+            @auto-discovery-cmd="openAutoDiscoveryModal"
+            @batch-edit="openBatchEditModal"
+            @batch-delete="batchDelete"
+            @toggle-select-all="toggleSelectAll"
+            @refresh-cache="refreshServersCache"
+            @select-all="handleSelectAll"
+            @drag-start="handleDragStart"
+            @drop="handleDrop"
+            @toggle-server="toggleServer"
+            @copy-note="copyServerNote"
+            @copy-spec="copyServerSpec"
+            @copy-cmd="copyCmd"
+            @edit="openEditModal"
+            @delete="openDeleteModal"
+          />
 
-        <SettingsPanel
-          ref="settingsPanelRef"
-          :trans="trans"
-          :settings="settings"
-          :servers="servers"
-          :password-visible="passwordVisible"
-          :active-tab="activeTab"
-          :selected-api-base="selectedApiBase"
-          :current-origin="currentOrigin"
-          :saving="saving"
-          :change-admin-password="changeAdminPassword"
-          :test-notification-loading="testNotificationLoading"
-          :d1-usage-loading="d1UsageLoading"
-          @toggle-password="togglePassword"
-          @toggle-admin-password-change="toggleAdminPasswordChange"
-          @save-settings="saveSettings"
-          @upload-bg="uploadBg"
-          @upload-bg-mobile="uploadBgMobile"
-          @upload-favicon="uploadFavicon"
-          @send-test-notification="sendTestNotification"
-          @query-d1-usage="queryD1Usage"
-          @alert-message="alertMessage = $event"
-        />
+          <SettingsPanel
+            ref="settingsPanelRef"
+            :trans="trans"
+            :settings="settings"
+            :servers="servers"
+            :password-visible="passwordVisible"
+            :active-tab="activeTab"
+            :selected-api-base="selectedApiBase"
+            :current-origin="currentOrigin"
+            :saving="saving"
+            :change-admin-password="changeAdminPassword"
+            :test-notification-loading="testNotificationLoading"
+            :d1-usage-loading="d1UsageLoading"
+            @toggle-password="togglePassword"
+            @toggle-admin-password-change="toggleAdminPasswordChange"
+            @save-settings="saveSettings"
+            @upload-bg="uploadBg"
+            @upload-bg-mobile="uploadBgMobile"
+            @upload-favicon="uploadFavicon"
+            @send-test-notification="sendTestNotification"
+            @query-d1-usage="queryD1Usage"
+            @alert-message="alertMessage = $event"
+          />
 
-        <DatabasePanel
-          :trans="trans"
-          :active-tab="activeTab"
-          :db-loading="dbLoading"
-          :selected-api-index="selectedApiIndex"
-          @open-db-modal="openDbModal"
-        />
+          <DatabasePanel
+            :trans="trans"
+            :active-tab="activeTab"
+            :db-loading="dbLoading"
+            :selected-api-index="selectedApiIndex"
+            @open-db-modal="openDbModal"
+          />
 
-        <ThemeStorePanel
-          :trans="trans"
-          :active-tab="activeTab"
-          :selected-api-index="selectedApiIndex"
-          :current-theme-url="settings.theme_url"
-          :settings="settings"
-          @theme-applied="settings.theme_url = $event"
-          @theme-options-applied="handleThemeOptionsApplied"
-          @alert-message="alertMessage = $event"
-        />
+          <ThemeStorePanel
+            :trans="trans"
+            :active-tab="activeTab"
+            :selected-api-index="selectedApiIndex"
+            :current-theme-url="settings.theme_url"
+            :settings="settings"
+            @theme-applied="settings.theme_url = $event"
+            @theme-options-applied="handleThemeOptionsApplied"
+            @alert-message="alertMessage = $event"
+          />
+        </div>
 
       </div>
 
@@ -1118,6 +1120,10 @@ const testNotificationLoading = ref(false)
 const saveResult = ref(null)
 
 const settingsPanelRef = ref(null)
+const adminScrollContent = ref(null)
+watch(activeTab, () => {
+  if (adminScrollContent.value) adminScrollContent.value.scrollTop = 0
+}, { flush: 'post' })
 
 const showCopyModal = ref(false)
 const copyServerId = ref('')
