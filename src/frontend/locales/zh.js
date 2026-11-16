@@ -294,7 +294,7 @@ export default {
   trafficLimit: '流量限制',
   autoUpdate: '自动更新',
   autoUpdateRiskTitle: '自动更新风险提示',
-  autoUpdateRiskDesc: '请确保安全的情况下开启，修改后需要重新复制命令执行。',
+  autoUpdateRiskDesc: '默认开启，每 6 小时检查正式版本；v1.2.0 起后台开关实时生效，旧探针需先升级。',
   autoUpdateRiskConfirm: '确认开启',
   autoUpdateRiskCancel: '取消',
   hideFromPublic: '隐藏',

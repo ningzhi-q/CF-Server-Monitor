@@ -22,8 +22,8 @@ const server = {
   reset_day: 15,
   ping_mode: 'tcp'
 };
-const expected = 'collect_interval=1&report_interval=60&reset_day=15&schema_version=8&custom_ct=&custom_cu=&custom_cm=&custom_bd=&interface=&node_1=&node_2=&node_3=&node_4=&connection_mode=http&ping_mode=tcp&probe_catalog=%7B%22enabled%22%3Afalse%2C%22groups%22%3A%5B%5D%7D&probe_selection=%7B%22mode%22%3A%22auto%22%2C%22targets%22%3A%5B%5D%7D';
-const expectedWssEnabled = 'collect_interval=1&report_interval=60&reset_day=15&schema_version=8&custom_ct=&custom_cu=&custom_cm=&custom_bd=&interface=&node_1=&node_2=&node_3=&node_4=&connection_mode=auto&wss_report_interval=2&ping_mode=tcp&probe_catalog=%7B%22enabled%22%3Afalse%2C%22groups%22%3A%5B%5D%7D&probe_selection=%7B%22mode%22%3A%22auto%22%2C%22targets%22%3A%5B%5D%7D';
+const expected = 'collect_interval=1&report_interval=60&reset_day=15&schema_version=8&custom_ct=&custom_cu=&custom_cm=&custom_bd=&interface=&node_1=&node_2=&node_3=&node_4=&connection_mode=http&ping_mode=tcp&update=1&probe_catalog=%7B%22enabled%22%3Afalse%2C%22groups%22%3A%5B%5D%7D&probe_selection=%7B%22mode%22%3A%22auto%22%2C%22targets%22%3A%5B%5D%7D';
+const expectedWssEnabled = 'collect_interval=1&report_interval=60&reset_day=15&schema_version=8&custom_ct=&custom_cu=&custom_cm=&custom_bd=&interface=&node_1=&node_2=&node_3=&node_4=&connection_mode=auto&wss_report_interval=2&ping_mode=tcp&update=1&probe_catalog=%7B%22enabled%22%3Afalse%2C%22groups%22%3A%5B%5D%7D&probe_selection=%7B%22mode%22%3A%22auto%22%2C%22targets%22%3A%5B%5D%7D';
 const expectedLegacy = 'collect_interval=1&report_interval=60&reset_day=15&schema_version=3&custom_ct=&custom_cu=&custom_cm=&custom_bd=&interface=';
 
 const config = buildAgentConfig(server);
@@ -101,6 +101,7 @@ assert.deepEqual(buildAgentConfig({}), {
   node_4: '',
   connection_mode: 'http',
   ping_mode: 'tcp',
+  update: '1',
   probe_catalog: { enabled: false, groups: [] },
   probe_selection: { mode: 'auto', targets: [] }
 });

@@ -75,7 +75,7 @@ export async function addServerColumns(db) {
       wss_report_interval: "INTEGER DEFAULT 2",
       connection_mode: "TEXT DEFAULT 'auto'",
       ping_mode: "TEXT DEFAULT 'tcp'",
-      auto_update: "TEXT DEFAULT '0'",
+      auto_update: "TEXT DEFAULT '1'",
       custom_ct: "TEXT DEFAULT ''",
       custom_cu: "TEXT DEFAULT ''",
       custom_cm: "TEXT DEFAULT ''",

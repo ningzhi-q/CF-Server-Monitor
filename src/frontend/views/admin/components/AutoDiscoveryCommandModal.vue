@@ -116,7 +116,7 @@ const props = defineProps({
   name: { type: String, default: '' },
   installMode: { type: String, default: 'current-user' },
   version: { type: String, default: '' },
-  autoUpdate: { type: Boolean, default: false },
+  autoUpdate: { type: Boolean, default: true },
   ghProxy: { type: String, default: '' },
   installCommand: { type: String, default: '' },
   copied: { type: Boolean, default: false }
