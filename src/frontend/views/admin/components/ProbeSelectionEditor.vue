@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { normalizeProbeSelection, selectProbeTargets } from '../../../../shared/probes.js'
+import { normalizeProbeSelection, selectProbeTargets, probeReachable } from '../../../../shared/probes.js'
 const props = defineProps({ catalog: { type: Object, required: true }, ipv4: String, ipv6: String })
 const selection = defineModel({ default: '' })
 const parsed = computed(() => normalizeProbeSelection(selection.value))
@@ -21,7 +21,7 @@ function toggle(ids, checked) {
 <template>
   <div class="probe-selection">
     <label><input type="checkbox" :checked="automatic" @change="setAutomatic"> 按 IPv4 / IPv6 能力自动选择</label>
-    <p v-if="automatic && !ipv4 && !ipv6" class="probe-selection__hint">等待 Agent 上报网络能力后自动选择。</p>
+    <p v-if="automatic && !probeReachable(ipv4, 'ipv4') && !probeReachable(ipv6, 'ipv6')" class="probe-selection__hint">等待 Agent 上报网络能力后自动选择。</p>
     <section v-for="group in catalog.groups" :key="group.id">
       <label class="probe-selection__group"><input type="checkbox" :disabled="automatic" :checked="group.targets.filter(t => t.enabled).length > 0 && group.targets.filter(t => t.enabled).every(t => selected.includes(t.id))" @change="toggle(group.targets.filter(t => t.enabled).map(t => t.id), $event.target.checked)"> {{ group.name }} <small>{{ group.family === 'auto' ? '通用 / 双栈' : group.family === 'ipv4' ? 'IPv4' : 'IPv6' }}</small></label>
       <div class="probe-selection__targets">

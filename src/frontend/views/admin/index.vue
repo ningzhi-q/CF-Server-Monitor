@@ -76,27 +76,30 @@
       </div>
 
       <div class="main-panel admin-workspace">
-        <div class="tabs">
-          <button
-            class="tab-btn"
-            :class="{ active: activeTab === 'servers' }"
-            @click="activeTab = 'servers'"
-          >{{ trans.servers }}</button>
-          <button
-            class="tab-btn"
-            :class="{ active: activeTab === 'settings' }"
-            @click="activeTab = 'settings'"
-          >{{ trans.settings }}</button>
-          <button
-            class="tab-btn"
-            :class="{ active: activeTab === 'database' }"
-            @click="activeTab = 'database'"
-          >{{ trans.dbManagement }}</button>
-          <button
-            class="tab-btn"
-            :class="{ active: activeTab === 'themeStore' }"
-            @click="activeTab = 'themeStore'"
-          >{{ trans.themeStore }}</button>
+        <div class="admin-toolbar">
+          <div class="tabs">
+            <button
+              class="tab-btn"
+              :class="{ active: activeTab === 'servers' }"
+              @click="activeTab = 'servers'"
+            >{{ trans.servers }}</button>
+            <button
+              class="tab-btn"
+              :class="{ active: activeTab === 'settings' }"
+              @click="activeTab = 'settings'"
+            >{{ trans.settings }}</button>
+            <button
+              class="tab-btn"
+              :class="{ active: activeTab === 'database' }"
+              @click="activeTab = 'database'"
+            >{{ trans.dbManagement }}</button>
+            <button
+              class="tab-btn"
+              :class="{ active: activeTab === 'themeStore' }"
+              @click="activeTab = 'themeStore'"
+            >{{ trans.themeStore }}</button>
+          </div>
+          <button v-if="activeTab === 'settings'" class="btn btn-primary admin-save-button" :disabled="saving || settingsPanelRef?.saveDisabled" :title="trans.saveHint" @click="saveSettings">{{ saving ? '⏳' : '💾' }} {{ saving ? trans.saving : trans.saveConfig }}</button>
         </div>
 
         <div ref="adminScrollContent" class="admin-scroll-content" tabindex="0">

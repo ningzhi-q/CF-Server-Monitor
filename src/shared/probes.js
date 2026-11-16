@@ -46,12 +46,21 @@ export function normalizeProbeSelection(input) {
   return result;
 }
 
+export function probeReachable(value, family) {
+  if (value === '1') return true;
+  if (typeof value !== 'string' || !validatePingNode(value).valid) return false;
+  return family === 'ipv4' ? /^\d+\.\d+\.\d+\.\d+$/.test(value)
+    : value.includes(':') && !value.includes('.');
+}
+
 export function selectProbeTargets(catalog, selection, ipv4, ipv6) {
   const chosen = new Set(selection.targets);
+  const v4 = probeReachable(ipv4, 'ipv4');
+  const v6 = probeReachable(ipv6, 'ipv6');
   return catalog.enabled ? catalog.groups.flatMap(group => group.targets.filter(target => target.enabled && (
     selection.mode === 'manual' ? chosen.has(target.id)
-      : group.family === 'ipv4' ? ipv4 === '1'
-        : group.family === 'ipv6' ? ipv6 === '1' : ipv4 === '1' || ipv6 === '1'
+      : group.family === 'ipv4' ? v4
+        : group.family === 'ipv6' ? v6 : v4 || v6
   )).map(target => ({ ...target, family: group.family, group: group.id }))) : [];
 }
 
