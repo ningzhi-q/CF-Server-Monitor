@@ -798,10 +798,7 @@
       </div>
     </div>
 
-    <div class="settings-save-bar">
-      <span class="settings-save-hint">{{ trans.saveHint }}</span>
-      <button @click="$emit('save-settings')" class="btn btn-primary btn-lg" :disabled="saving || probeCatalogInvalid || userAgentInvalid">{{ saving ? '⏳' : '💾' }} {{ saving ? trans.saving : trans.saveConfig }}</button>
-    </div>
+
   </div>
 </template>
 
@@ -1429,5 +1426,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', closeResourceAlertServerDropdowns)
 })
 
-defineExpose({ validateCspField, cspErrors, validateSmtpFields, smtpErrors })
+const saveDisabled = computed(() => probeCatalogInvalid.value || userAgentInvalid.value)
+defineExpose({ validateCspField, cspErrors, validateSmtpFields, smtpErrors, saveDisabled })
 </script>

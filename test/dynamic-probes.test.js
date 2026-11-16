@@ -33,7 +33,7 @@ test('catalog exceeds eight targets, preserves IDs across edits and omits privat
 
 test('IPv4 / IPv6 / dual stack automatic selection and explicit manual selection', () => {
   const automatic = normalizeProbeSelection();
-  for (const [v4, v6, families] of [['1', '0', ['ipv4', 'auto']], ['0', '1', ['ipv6', 'auto']], ['1', '1', ['ipv4', 'ipv6', 'auto']], ['0', '0', []]]) {
+  for (const [v4, v6, families] of [['1', '0', ['ipv4', 'auto']], ['0', '1', ['ipv6', 'auto']], ['1', '1', ['ipv4', 'ipv6', 'auto']], ['0', '0', []], ['192.0.2.1', '0', ['ipv4', 'auto']], ['0', '2001:db8::1', ['ipv6', 'auto']], ['192.0.2.1', '2001:db8::1', ['ipv4', 'ipv6', 'auto']], ['2001:db8::1', '192.0.2.1', []]]) {
     assert.deepEqual([...new Set(selectProbeTargets(catalog, automatic, v4, v6).map(t => t.family))], families);
   }
   assert.deepEqual(selectProbeTargets(catalog, { mode: 'manual', targets: [] }, '1', '1'), []);
