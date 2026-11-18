@@ -2228,61 +2228,13 @@ const buildEditPayloadFromForm = (form) => {
 const saveEdit = async () => {
   validationError.value = null
 
-  const pingNodeValidation = getPingNodeValidation(editForm.value)
-  if (!pingNodeValidation.valid) {
-    validationError.value = buildPingNodeError(pingNodeValidation.field)
+  const { payload: data, normalized, error } = buildEditPayloadFromForm(editForm.value)
+  if (error) {
+    validationError.value = error
     return
   }
 
-  const normalizedBillingCycle = normalizeBillingCycle(editForm.value.billing_cycle)
-  const normalizedAutoRenewal = isEnabledFlag(editForm.value.auto_renewal) && supportsAutoRenewal(normalizedBillingCycle, editForm.value.expire_date) ? '1' : '0'
-  const normalizedPrice = normalizePrice(editForm.value.price)
-  const normalizedCurrency = normalizeCurrency(editForm.value.currency || detectCurrencySymbol(editForm.value.price) || '¥')
-  const normalizedExpireDate = renewExpireDateIfNeeded(
-    editForm.value.expire_date,
-    normalizedBillingCycle,
-    normalizedAutoRenewal
-  ).expire_date
-
-  editForm.value.price = normalizedPrice
-  editForm.value.currency = normalizedCurrency
-  editForm.value.billing_cycle = normalizedBillingCycle
-  editForm.value.expire_date = normalizedExpireDate
-
-  const data = {
-    action: 'edit',
-    id: editForm.value.id,
-    name: editForm.value.name,
-    server_group: editForm.value.server_group,
-    region: editForm.value.region,
-    tags: editForm.value.tags,
-    note: editForm.value.note,
-    price: normalizedPrice,
-    billing_cycle: normalizedBillingCycle,
-    auto_renewal: normalizedAutoRenewal,
-    currency: normalizedCurrency,
-    expire_date: normalizedExpireDate,
-    traffic_limit: editForm.value.traffic_limit,
-    traffic_calc_type: editForm.value.traffic_calc_type,
-    traffic_alert_percent: normalizeTrafficAlertPercentField(editForm.value.traffic_alert_percent),
-    interface: editForm.value.interface,
-    reset_day: editForm.value.reset_day,
-    collect_interval: editForm.value.collect_interval,
-    report_interval: editForm.value.report_interval,
-    wss_report_interval: editForm.value.wss_report_interval,
-    connection_mode: getEffectiveConnectionMode(editForm.value.connection_mode),
-    ping_mode: editForm.value.ping_mode === 'icmp' ? 'icmp' : 'tcp',
-    custom_ct: pingNodeValidation.values.custom_ct,
-    custom_cu: pingNodeValidation.values.custom_cu,
-    custom_cm: pingNodeValidation.values.custom_cm,
-    custom_bd: pingNodeValidation.values.custom_bd,
-    node_1: pingNodeValidation.values.node_1, node_2: pingNodeValidation.values.node_2, node_3: pingNodeValidation.values.node_3, node_4: pingNodeValidation.values.node_4,
-    rx_correction: editForm.value.rx_correction,
-    tx_correction: editForm.value.tx_correction,
-    auto_update: editForm.value.auto_update ? '1' : '0',
-    is_hidden: editForm.value.is_hidden ? '1' : '0',
-    offline_notify_disabled: editForm.value.offline_notify_disabled ? '1' : '0'
-  }
+  Object.assign(editForm.value, normalized)
 
   try {
     const result = await adminApiForSite(data)
