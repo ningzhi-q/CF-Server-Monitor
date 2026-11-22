@@ -60,7 +60,7 @@ function createFakeDb(initialServers = [], siteOptions = null) {
         if (text.includes('INSERT INTO servers')) {
           if (state.failInsert) throw new Error('D1_ERROR');
           // 测试替身：只用于 discoverServer 流程，SQL 本身由 test/server-insert-sql.test.js 用真实 D1 覆盖。
-          const [, id, name, server_group, region, iface, timestamp] = args;
+          const [, , id, name, server_group, region, iface, timestamp] = args;
           const usedPartitionIds = new Set(
             servers.map(server => Number(server.history_partition_id)).filter(pid => pid > 0)
           );
@@ -100,7 +100,11 @@ function createFakeDb(initialServers = [], siteOptions = null) {
     return statement;
   }
 
-  return { servers, state, prepare };
+  return { servers, state, prepare, async batch(statements) {
+    const results = [];
+    for (const statement of statements) results.push(await statement.run());
+    return results;
+  } };
 }
 
 test('isAutoDiscoveryEnabled only accepts the explicit switch', () => {
@@ -169,7 +173,8 @@ test('discoverServer creates a server when no server matches the name', async ()
 
 test('insertServerWithPartition only treats changes===0 as no free partition', async () => {
   const makeDb = result => ({
-    prepare: () => ({ bind: () => ({ run: async () => result }) })
+    prepare: () => ({ bind: () => ({ run: async () => result }) }),
+    batch: async statements => Promise.all(statements.map(statement => statement.run()))
   });
 
   // 测试替身/包装层可能不返回 meta，写入其实已经成功，不能误判为“分区已满”。

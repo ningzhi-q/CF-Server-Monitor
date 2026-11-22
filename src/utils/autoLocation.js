@@ -122,13 +122,15 @@ async function lookupAutoLocation(input, ip, fetcher = fetch) {
   }
 }
 
-// A quota response is not an empty location. Try an independent provider, keeping
-// the trusted country and coordinates, and validating its IP before accepting names.
+// A quota or a successful answer that is still only the city-state name can
+// benefit from an independent locality source. Keep trusted coordinates/country.
 async function lookupLocationWithFallback(input, ip, fetcher = fetch) {
   const primary = await lookupAutoLocation(input, ip, fetcher);
-  if (!primary.quota) return primary;
-  const location = primary.location;
   const address = normalizeLocationIp(ip);
+  if (!primary.location || !address) return primary;
+  const coarseSuccess = !primary.retry && needsLocationRefinement(primary.location) && !primary.location?.subdivision;
+  if (!primary.quota && !coarseSuccess) return primary;
+  const location = primary.location;
   try {
     const response = await fetcher(`https://api.ipapi.is/?q=${encodeURIComponent(address)}`, { signal: AbortSignal.timeout(3000) });
     if (!response.ok) return primary;
@@ -201,9 +203,14 @@ export async function saveAutoLocation(db, server, input, now = Date.now(), opti
       // Promise is installed before awaiting, deduplicating concurrent reports.
       const previous = entry.lookup?.key === key ? entry.lookup : null;
       const lookup = { key, expiresAt: Infinity, result: null };
-      lookup.result = lookupLocationWithFallback(location, ip, options.fetcher).then(result => {
+      lookup.result = lookupLocationWithFallback(location, ip, options.fetcher).then(async result => {
         lookup.expiresAt = now + (result.retry ? RETRY_MS : REFRESH_MS);
-        if (result.retry && previous) return previous.result;
+        if (previous && (result.retry || (needsLocationRefinement(result.location) && !result.location?.subdivision))) {
+          const saved = await previous.result;
+          // The same IP/place still has a validated finer reference. A coarse
+          // answer or unavailable backup must not erase it during refresh.
+          if (result.retry || saved?.subdivision || (saved && !needsLocationRefinement(saved))) return saved;
+        }
         return result.location;
       });
       entry.lookup = lookup;
