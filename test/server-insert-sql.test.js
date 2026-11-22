@@ -103,3 +103,27 @@ test('SERVER_INSERT_SQL 并发写入分区号与 sort_order 均不重复', async
   assert.equal(new Set(results.map(row => Number(row.history_partition_id))).size, 20);
   assert.equal(new Set(results.map(row => Number(row.sort_order))).size, 20);
 });
+
+test('新节点插在所属分组末尾，后续分组保持原相对顺序，新分组追加到全站末尾', async () => {
+  await resetServers();
+  for (const [id, group] of [['a1', 'A'], ['b1', 'B'], ['b2', 'B'], ['c1', 'C']]) {
+    await insertServerWithPartition(db, { id, name: id, group });
+  }
+  await insertServerWithPartition(db, { id: 'a2', name: 'A2', group: 'A' });
+  await insertServerWithPartition(db, { id: 'b3', name: 'B3', group: 'B' });
+  await insertServerWithPartition(db, { id: 'd1', name: 'D1', group: 'D' });
+  const { results } = await db.prepare('SELECT id, sort_order FROM servers ORDER BY sort_order').all();
+  assert.deepEqual(results.map(row => row.id), ['a1', 'a2', 'b1', 'b2', 'b3', 'c1', 'd1']);
+  assert.deepEqual(results.map(row => row.sort_order), [0, 1, 2, 3, 4, 5, 6]);
+});
+
+test('并发向前面的分组插入不会与后续分组撞序号', async () => {
+  await resetServers();
+  await insertServerWithPartition(db, { id: 'a', name: 'A', group: 'A' });
+  await insertServerWithPartition(db, { id: 'b', name: 'B', group: 'B' });
+  await Promise.all(Array.from({ length: 12 }, (_, i) => insertServerWithPartition(db, { id: `new-${i}`, name: `N${i}`, group: 'A' })));
+  const { results } = await db.prepare('SELECT id, sort_order, history_partition_id FROM servers ORDER BY sort_order').all();
+  assert.equal(results.at(-1).id, 'b');
+  assert.equal(new Set(results.map(row => row.sort_order)).size, 14);
+  assert.equal(new Set(results.map(row => row.history_partition_id)).size, 14);
+});

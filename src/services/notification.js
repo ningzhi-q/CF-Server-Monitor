@@ -1079,10 +1079,22 @@ export async function checkOfflineNodes(db, options = {}) {
     const offlineThreshold = (tgNotifyMinutes || TG_NOTIFY_LEGACY_TRUE_MINUTES) * 60 * 1000;
     const offlineNodes = [];
     const recoveredNodes = [];
+    let stateChanged = false;
 
     for (const s of servers) {
       const hasLatestReport = latestTimestampsMap.has(s.id);
       const lastReportTime = latestTimestampsMap.get(s.id);
+
+      // A newly registered node is awaiting its first report, not an outage.
+      // Also clear legacy alerts created while it had never reported, so its
+      // first connection cannot be mistaken for a recovery.
+      if (!hasLatestReport || !Number.isFinite(lastReportTime) || lastReportTime <= 0) {
+        if (Object.hasOwn(alertState, s.id)) {
+          delete alertState[s.id];
+          stateChanged = true;
+        }
+        continue;
+      }
 
       let isOffline = true;
       if (hasLatestReport) {
@@ -1101,7 +1113,7 @@ export async function checkOfflineNodes(db, options = {}) {
       }
     }
 
-    if (offlineNodes.length > 0 || recoveredNodes.length > 0) {
+    if (stateChanged || offlineNodes.length > 0 || recoveredNodes.length > 0) {
       await db.prepare(
         'INSERT INTO settings (key, value) VALUES ("alert_state", ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
       ).bind(JSON.stringify(alertState)).run();

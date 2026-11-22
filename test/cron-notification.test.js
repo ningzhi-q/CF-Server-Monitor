@@ -171,6 +171,44 @@ function seedSamples(broadcaster, serverId, values, now = Date.now()) {
   });
 }
 
+test('new nodes are silent until their first report; subsequent outages and recoveries still notify', async t => {
+  const messages = setup(t);
+  const settings = makeSettings({ online_notify: 'true' });
+  const db = makeDb(settings);
+  db.timestamps.delete('server-1');
+  await checkOfflineNodes(db, { siteSettings: settings });
+  assert.deepEqual(db.offlineState, {});
+  assert.equal(messages.length, 0);
+  assert.equal(db.stats.writes, 0);
+  db.timestamps.set('server-1', Date.now());
+  await checkOfflineNodes(db, { siteSettings: settings });
+  assert.equal(messages.length, 0, 'first connection is not a recovery');
+  t.mock.timers.tick(3 * MINUTE);
+  await checkOfflineNodes(db, { siteSettings: settings });
+  assert.equal(messages.length, 1);
+  assert.deepEqual(db.offlineState, { 'server-1': true });
+  db.timestamps.set('server-1', Date.now());
+  await checkOfflineNodes(db, { siteSettings: settings });
+  assert.equal(messages.length, 2);
+  assert.deepEqual(db.offlineState, {});
+});
+
+test('unreported nodes silently clear legacy false offline states, including invalid report timestamps', async t => {
+  const messages = setup(t);
+  const settings = makeSettings({ online_notify: 'true' });
+  for (const timestamp of [undefined, null, 0, NaN]) {
+    const db = makeDb(settings);
+    if (timestamp === undefined) db.timestamps.delete('server-1');
+    else db.timestamps.set('server-1', timestamp);
+    db.offlineState = { 'server-1': true };
+    await checkOfflineNodes(db, { siteSettings: settings });
+    assert.deepEqual(db.offlineState, {});
+    db.timestamps.set('server-1', Date.now());
+    await checkOfflineNodes(db, { siteSettings: settings });
+    assert.equal(messages.length, 0);
+  }
+});
+
 test('minute cron shares one settings read, preserves refresh cadence and adds no requests or writes', async t => {
   const messages = setup(t);
   const db = makeDb(makeSettings(), [makeServer(1), makeServer(2, { offline_notify_disabled: '1' })]);
@@ -217,7 +255,7 @@ test('minute cron keeps offline and resource alerts working when settings refres
   const db = makeDb(makeSettings());
   await loadSiteSettings(db);
   db.failSettings = true;
-  db.timestamps.delete('server-1');
+  db.timestamps.set('server-1', NOW - 10 * MINUTE);
   const { env, broadcaster, calls } = makeEnv(db);
   seedSamples(broadcaster, 'server-1', [90, 90, 90, 90, 90]);
 
@@ -322,7 +360,7 @@ test('offline queries exclude disabled nodes and preserve trigger/recovery dedup
   const messages = setup(t);
   const settings = makeSettings();
   const db = makeDb(settings, [makeServer(1), makeServer(2), makeServer(3, { offline_notify_disabled: '1' })]);
-  db.timestamps.delete('server-1');
+  db.timestamps.set('server-1', NOW - 10 * MINUTE);
   db.offlineState = { 'server-2': true, 'server-3': true };
   await checkOfflineNodes(db, { siteSettings: settings });
   assert.equal(db.stats.settings, 0);
@@ -417,7 +455,7 @@ test('explicitly disabling online reminders keeps offline alerts and clears reco
   const messages = setup(t);
   const settings = makeSettings({ tg_notify: '2', online_notify: 'false' });
   const db = makeDb(settings);
-  db.timestamps.delete('server-1');
+  db.timestamps.set('server-1', NOW - 10 * MINUTE);
   await checkOfflineNodes(db, { siteSettings: settings });
   assert.equal(messages.length, 1);
   assert.ok(messages[0].text.includes(getNotificationMessages(settings).events.offline));
@@ -462,12 +500,12 @@ test('both switches, missing channels and D1 failures never send online reminder
   }
 });
 
-test('online-only cron detects recovery after an initial missing report and honors language', async t => {
+test('online-only cron detects recovery after a previously reported outage and honors language', async t => {
   const messages = setup(t);
   const settings = makeSettings({ tg_notify: '0', online_notify: 'true', resource_alert_rules: [], notification_language: 'es' });
   const db = makeDb(settings);
   const { env } = makeEnv(db);
-  db.timestamps.delete('server-1');
+  db.timestamps.set('server-1', NOW - 10 * MINUTE);
   await worker.scheduled({ cron: '*/1 * * * *' }, env, {});
   assert.equal(messages.length, 0);
   assert.deepEqual(db.offlineState, { 'server-1': true });

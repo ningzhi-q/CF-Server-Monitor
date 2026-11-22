@@ -99,13 +99,17 @@ export const HISTORY_PARTITION_PICK_SQL = `
       )
     END`;
 
-// 新建服务器的唯一入口：分区号与 sort_order 在同一条 INSERT 内计算。
+// 新建服务器的唯一入口：在一个 D1 事务内分配分区号并插到所属分组末尾。
 // 这里不保留外部传入的分区号（p=0），始终取最小空闲值。
 const SERVER_INSERT_SQL = `
-  WITH pref(p) AS (SELECT ?),
+  WITH pref(p, group_name) AS (SELECT ?, ?),
   next AS (
     SELECT
-      (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM servers) AS sort_order,
+      COALESCE(
+        (SELECT MAX(sort_order) + 1 FROM servers
+         WHERE COALESCE(NULLIF(server_group, ''), 'Default') = group_name),
+        (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM servers)
+      ) AS sort_order,
       ${HISTORY_PARTITION_PICK_SQL} AS pid
     FROM pref
   )
@@ -117,9 +121,13 @@ const SERVER_INSERT_SQL = `
 `;
 
 export async function insertServerWithPartition(db, { id, name, group = 'Default', region = '', iface = '' }) {
-  const result = await db.prepare(SERVER_INSERT_SQL)
-    .bind(0, id, name, group, region, iface, Date.now())
-    .run();
+  const [result] = await db.batch([
+    db.prepare(SERVER_INSERT_SQL)
+      .bind(0, group, id, name, group, region, iface, Date.now()),
+    db.prepare(`UPDATE servers SET sort_order = sort_order + 1
+      WHERE id != ? AND sort_order >= (SELECT sort_order FROM servers WHERE id = ?)`)
+      .bind(id, id)
+  ]);
   // 900 个分区全被占用时 SELECT 不返回行，changes 为 0；与旧的抛错行为保持一致。
   // 只在明确的 0 行写入时抛错：缺少 meta 的返回值（测试替身、包装层）不能当成失败。
   if (result?.meta?.changes === 0) {

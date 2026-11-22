@@ -158,7 +158,36 @@ test('a valid provider answer without a finer locality remains cached for a day'
   const server = { id: 'no-finer-area' };
   await saveAutoLocation(db, server, coarse, now, options);
   await saveAutoLocation(db, server, coarse, now + 60001, options);
-  assert.equal(calls, 1);
+  assert.equal(calls, 2, 'both locality sources are tried once and then cached');
+});
+
+test('a coarse Singapore answer also tries the independent source for a real district', async () => {
+  const coarse = locationFromCf({ country: 'SG', city: 'Singapore', latitude: '1.28967', longitude: '103.85007' }, now);
+  const ip = '192.0.2.3';
+  const calls = [];
+  const result = await refineAutoLocation(coarse, ip, async url => {
+    calls.push(url);
+    return Response.json(url.includes('db-ip.com')
+      ? { ipAddress: ip, countryCode: 'SG', city: 'Singapore' }
+      : { ip, location: { country_code: 'SG', city: 'Singapore', state: 'Tampines', latitude: 99, longitude: 99 } });
+  });
+  assert.equal(calls.length, 2);
+  assert.deepEqual(result, { ...coarse, subdivision: 'Tampines', subdivision_source: 'ipapi-is' });
+  assert.deepEqual(await refineAutoLocation(coarse, null, async () => { throw new Error('must not request without a valid IP'); }), coarse);
+});
+
+test('a coarse refresh and unavailable backup do not erase a validated district for the same IP', async () => {
+  const db = { prepare() { return { bind() { return this; }, async all() { return { results: [{ name: 'auto_location' }] }; }, async run() { return { success: true }; } }; } };
+  const coarse = locationFromCf({ country: 'SG', city: 'Singapore', latitude: '1.28967', longitude: '103.85007' }, now);
+  const server = { id: 'stable-district' };
+  let refreshed = false;
+  const options = { ip: '192.0.2.3', fetcher: async url => {
+    if (url.includes('ipapi.is')) return new Response('', { status: 503 });
+    return Response.json({ ipAddress: '192.0.2.3', countryCode: 'SG', city: refreshed ? 'Singapore' : 'Singapore (Tampines)' });
+  } };
+  assert.equal((await saveAutoLocation(db, server, coarse, now, options)).subdivision, 'Tampines');
+  refreshed = true;
+  assert.equal((await saveAutoLocation(db, server, coarse, now + 86400001, options)).subdivision, 'Tampines');
 });
 
 test('Cloudflare data is validated without guessing absent coordinates or cities', () => {
